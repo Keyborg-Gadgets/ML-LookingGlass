@@ -2,14 +2,19 @@
 #include "globals.h"
 #include "DevicesAndShaders.h"
 
+struct uint2 {
+    unsigned int x;
+    unsigned int y;
+};
+
 inline void CreateD2DDevice() {
     HRESULT hr;
     D2D1_FACTORY_OPTIONS options;
     memset(&options, 0, sizeof(options));
 
-#if defined(_DEBUG)
-    options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
-#endif
+//#if defined(_DEBUG)
+//    options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+//#endif
 
     hr = D2D1CreateFactory(
         D2D1_FACTORY_TYPE_SINGLE_THREADED,
@@ -40,11 +45,6 @@ inline void CreateD2DDevice() {
     assert(SUCCEEDED(hr) && d2dTextureBackBuffer != nullptr);
     d2dContext->SetTarget(d2dBitmapBackBuffer);
 }
-
-struct uint2 {
-    unsigned int x;
-    unsigned int y;
-};
 
 HRESULT CopyDirtyRects() {
     UINT requiredSize = 0;
@@ -108,19 +108,79 @@ HRESULT CopyDirtyRects() {
 }
 
 
-struct __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
-    IDirect3DDxgiInterfaceAccess : ::IUnknown
-{
-    virtual HRESULT __stdcall GetInterface(GUID const& id, void** object) = 0;
-};
+inline void CreateDCompDevice() {
+    HRESULT hr = DCompositionCreateDevice(dxgiDevice, __uuidof(IDCompositionDevice), reinterpret_cast<void**>(&dcompDevice));
+    assert(SUCCEEDED(hr) && "Failed to create DComposition device");
+    hr = dcompDevice->CreateTargetForHwnd(overlayHwnd, TRUE, &dcompTarget);
+    assert(SUCCEEDED(hr) && "Failed to create DComposition target for HWND");
+    hr = dcompDevice->CreateVisual(&dcompVisual);
+    assert(SUCCEEDED(hr) && "Failed to create DComposition visual");
+    hr = dcompVisual->SetContent(swapchain);
+    assert(SUCCEEDED(hr) && "Failed to set content for DComposition visual");
+    hr = dcompTarget->SetRoot(dcompVisual);
+    assert(SUCCEEDED(hr) && "Failed to set root for DComposition target");
+    hr = dcompDevice->Commit();
+    assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
+}
 
-template <typename T>
-auto GetDXGIInterfaceFromObject(winrt::Windows::Foundation::IInspectable const& object)
-{
-    auto access = object.as<IDirect3DDxgiInterfaceAccess>();
-    winrt::com_ptr<T> result;
-    winrt::check_hresult(access->GetInterface(winrt::guid_of<T>(), result.put_void()));
-    return result;
+// Ok so this is cool. I'm handling it direct by manipulating the surface with a srv, but this is where I started. 
+inline void Render() {
+    d2dContext->BeginDraw();
+
+    d2dContext->Clear(D2D1::ColorF(D2D1::ColorF::Black, 0.0f));
+
+    ID2D1SolidColorBrush* rectBrush = nullptr;
+    D2D1_COLOR_F rectColor = D2D1::ColorF(D2D1::ColorF::LightBlue, 1.0f);
+    hr = d2dContext->CreateSolidColorBrush(rectColor, &rectBrush);
+    assert(SUCCEEDED(hr) && "Failed to create solid color brush");
+
+    D2D1_RECT_F rectangle = D2D1::RectF(xOfWindow, yOfWindow, xOfWindow+imgsz-1, yOfWindow-titleBarHeight);
+    d2dContext->FillRectangle(&rectangle, rectBrush);
+    rectBrush->Release(); 
+
+    hr = d2dContext->EndDraw();
+    assert(SUCCEEDED(hr) && "Failed to end D2D drawing");
+
+    hr = swapchain->Present(1, 0);
+    assert(SUCCEEDED(hr) && "Failed to present swap chain");
+
+    hr = dcompDevice->Commit();
+    assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
+}
+
+inline void Create2DTexture(ID3D11Texture2D** texture, int width, int height) {
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+
+    HRESULT hr = d3dDevice->CreateTexture2D(&desc, nullptr, texture);
+    if (FAILED(hr))
+        throw winrt::hresult_error(hr, L"Failed to create 2D texture.");
+}
+
+inline void CreateDesktopSRV() {
+    D3D11_TEXTURE2D_DESC desc;
+    desktopTexture->GetDesc(&desc);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = desc.Format;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = desc.MipLevels;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+
+
+    hr = d3dDevice->CreateShaderResourceView(desktopTexture, &srvDesc, &desktopShaderResourceView);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create shader resource view. Error Code: " << hr << std::endl;
+        exit(1);
+    }
 }
 
 HRESULT CompileShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3DBlob** blob) {
@@ -144,7 +204,7 @@ void InitializeComputeShader() {
 
     hr = CompileShader(L"ComputeShader.hlsl", "CSMain", "cs_5_0", &csBlob);
     if (FAILED(hr)) {
-        std::cerr << "Failed to compile compute shader file. Error Code: " << hr << std::endl;
+        std::cerr << "Failed to compile compute shader. Error Code: " << hr << std::endl;
         return;
     }
 
@@ -239,84 +299,92 @@ void InitializeComputeShader() {
     }
 }
 
+void ScanTexture(ID3D11Texture2D* texture) {
+    HRESULT hr;
 
-inline void CreateDCompDevice() {
-    HRESULT hr = DCompositionCreateDevice(dxgiDevice, __uuidof(IDCompositionDevice), reinterpret_cast<void**>(&dcompDevice));
-    assert(SUCCEEDED(hr) && "Failed to create DComposition device");
-    hr = dcompDevice->CreateTargetForHwnd(overlayHwnd, TRUE, &dcompTarget);
-    assert(SUCCEEDED(hr) && "Failed to create DComposition target for HWND");
-    hr = dcompDevice->CreateVisual(&dcompVisual);
-    assert(SUCCEEDED(hr) && "Failed to create DComposition visual");
-    hr = dcompVisual->SetContent(swapchain);
-    assert(SUCCEEDED(hr) && "Failed to set content for DComposition visual");
-    hr = dcompTarget->SetRoot(dcompVisual);
-    assert(SUCCEEDED(hr) && "Failed to set root for DComposition target");
-    hr = dcompDevice->Commit();
-    assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
-}
+    // Reset the output buffer to initial values before dispatch
+    uint2 initialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
+    d3dContext->UpdateSubresource(outputBuffer, 0, nullptr, &initialValue, 0, 0);
 
-// Ok so this is cool. I'm handling it direct by manipulating the surface with a srv, but this is where I started. 
-inline void Render() {
-    d2dContext->BeginDraw();
-
-    d2dContext->Clear(D2D1::ColorF(D2D1::ColorF::Black, 0.0f));
-
-    // Create a solid color brush
-    ID2D1SolidColorBrush* brush = nullptr;
-    D2D1_COLOR_F brushColor = D2D1::ColorF(0.18f, 0.55f, 0.34f, 0.75f);
-    HRESULT hr = d2dContext->CreateSolidColorBrush(brushColor, &brush);
-    assert(SUCCEEDED(hr) && "Failed to create solid color brush");
-
-    // Draw an ellipse
-    D2D1_POINT_2F ellipseCenter = D2D1::Point2F(xOfWindow, yxOfWindow);
-    D2D1_ELLIPSE ellipse = D2D1::Ellipse(ellipseCenter, 100.0f, 100.0f);
-    d2dContext->FillEllipse(ellipse, brush);
-    brush->Release(); // Release the brush after use
-
-    hr = d2dContext->EndDraw();
-    assert(SUCCEEDED(hr) && "Failed to end D2D drawing");
-
-    // Present the swap chain
-    hr = swapchain->Present(1, 0);
-    assert(SUCCEEDED(hr) && "Failed to present swap chain");
-
-    // Commit the DirectComposition device
-    hr = dcompDevice->Commit();
-    assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
-}
-
-inline void Create2DTexture(ID3D11Texture2D** texture, int width, int height) {
-    D3D11_TEXTURE2D_DESC desc = {};
-    desc.Width = width;
-    desc.Height = height;
-    desc.MipLevels = 1;
-    desc.ArraySize = 1;
-    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    desc.SampleDesc.Count = 1;
-    desc.SampleDesc.Quality = 0;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-
-    HRESULT hr = d3dDevice->CreateTexture2D(&desc, nullptr, texture);
-    if (FAILED(hr))
-        throw winrt::hresult_error(hr, L"Failed to create 2D texture.");
-}
-
-inline void CreateDesktopSRV() {
+    // Get texture description
     D3D11_TEXTURE2D_DESC desc;
-    desktopTexture->GetDesc(&desc);
+    texture->GetDesc(&desc);
 
+    // Ensure the texture format is DXGI_FORMAT_B8G8R8A8_UNORM
+    if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
+        std::cerr << "Texture format is not DXGI_FORMAT_B8G8R8A8_UNORM." << std::endl;
+    }
+
+    // Create the shader resource view (SRV)
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = desc.Format;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = desc.MipLevels;
     srvDesc.Texture2D.MostDetailedMip = 0;
 
-
-    hr = d3dDevice->CreateShaderResourceView(desktopTexture, &srvDesc, &desktopShaderResourceView);
+    ID3D11ShaderResourceView* srv = nullptr;
+    hr = d3dDevice->CreateShaderResourceView(texture, &srvDesc, &srv);
     if (FAILED(hr)) {
         std::cerr << "Failed to create shader resource view. Error Code: " << hr << std::endl;
-        exit(1);
+    }
+
+    // Bind the compute shader
+    d3dContext->CSSetShader(computeShader, nullptr, 0);
+
+    // Bind shader resource view (SRV) to slot t0
+    d3dContext->CSSetShaderResources(0, 1, &srv);
+
+    // Bind unordered access view (UAV) to slot u0
+    d3dContext->CSSetUnorderedAccessViews(0, 1, &outputBufferUAV, nullptr);
+
+    // Bind sampler state to slot s0
+    d3dContext->CSSetSamplers(0, 1, &samplerState);
+
+    // Calculate dispatch dimensions
+    unsigned int dispatchX = (desc.Width + 15) / 16;
+    unsigned int dispatchY = (desc.Height + 15) / 16;
+
+    // Dispatch the compute shader
+    d3dContext->Dispatch(dispatchX, dispatchY, 1);
+
+    // Unbind the SRV, UAV, and sampler after dispatch to avoid conflicts
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    ID3D11UnorderedAccessView* nullUAV = nullptr;
+    ID3D11SamplerState* nullSampler = nullptr;
+    d3dContext->CSSetShaderResources(0, 1, &nullSRV);
+    d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
+    d3dContext->CSSetSamplers(0, 1, &nullSampler);
+
+    // Release the SRV
+    srv->Release();
+
+    // Copy the output buffer to the readback buffer
+    d3dContext->CopyResource(outputBufferReadback, outputBuffer);
+
+    // Map the readback buffer to read the data
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    hr = d3dContext->Map(outputBufferReadback, 0, D3D11_MAP_READ, 0, &mappedResource);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to map readback buffer. Error Code: " << hr << std::endl;
+    }
+
+    // Read the data
+    uint2* outputData = reinterpret_cast<uint2*>(mappedResource.pData);
+    uint2 position = outputData[0];
+
+    // Unmap the buffer
+    d3dContext->Unmap(outputBufferReadback, 0);
+
+    // Check if a pixel was found
+    if (position.x != 0xFFFFFFFF && position.y != 0xFFFFFFFF) {
+        //std::cout << "Pixel found at position: (" << position.x << ", " << position.y << ")" << std::endl;
+        // Return the position as a vector of ints
+        xOfWindow = position.x - 10;
+        yOfWindow = position.y + 10;
+    }
+    else {
+        // std::cout << "No matching pixel found." << std::endl;
+        xOfWindow = -1;
+        yOfWindow = -1;
     }
 }
-

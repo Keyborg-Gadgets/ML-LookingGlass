@@ -11,15 +11,13 @@ HWND lookingGlassHwnd;
 HMONITOR monitor;
 HINSTANCE hInstance;
 std::atomic<bool> texture_written = false;
-D3D11_BOX srcBox;
 int titleBarHeight;
+int titleBarWidth;
 
 int monitor_width = 0;
 int monitor_height = 0;
 
-//winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice direct3DDevice;
 IDXGIAdapter1* adapter = nullptr;
-//winrt::com_ptr<IDXGIDevice> dxgiDevice; 
 
 IDXGIFactory2* d3dfactory = nullptr;
 ID2D1Factory2* d2dFactory = nullptr;

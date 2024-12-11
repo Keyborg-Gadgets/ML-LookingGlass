@@ -7,11 +7,14 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <shobjidl.h>
 
 // Windows Headers
 #include <windows.h>
 #include <Unknwn.h>
 #include <wincodec.h>
+#include <dwmapi.h>
+
 
 // Direct3D Headers
 #include <d3dcompiler.h>

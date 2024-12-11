@@ -47,16 +47,6 @@ extern "C" {
 
     void FinalSwap(IDXGISwapChain1* swapchain);
 
-    //void CreateD2DDevice(
-    //    IDXGIDevice1* dxgiDevice,
-    //    IDXGISwapChain1* swapchain,
-    //    ID2D1Factory2** d2dFactory,
-    //    ID2D1Device1** d2dDevice,
-    //    ID2D1DeviceContext** d2dContext,
-    //    IDXGISurface2** dxgiBackBuffer,
-    //    ID2D1Bitmap1** d2dBitmapBackBuffer
-    //);
-
     void Cleanup(
         ID3D11DeviceContext1** ctx,
         ID3D11Device1** device,

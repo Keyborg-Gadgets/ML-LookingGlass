@@ -1,38 +1,60 @@
 ﻿#include "StandAloneCapture.h"
 
-static winrt::Windows::Graphics::Capture::GraphicsCaptureItem winrt_capture_create_item(IGraphicsCaptureItemInterop* interop_factory, HMONITOR monitor);
+/// 
+/// 
+///  All variables are defined in globals.h
+///  
+///  
+///  
+
+//static winrt::Windows::Graphics::Capture::GraphicsCaptureItem winrt_capture_create_item(IGraphicsCaptureItemInterop* interop_factory, HMONITOR monitor);
 static void InitializeCapture();
 HRESULT CaptureFrame();
 Timer timer;
 
 int main()
 {
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
+    // Get some global screen and system settings
+    int titleBarHeight = GetSystemMetrics(SM_CYCAPTION);
     hInstance = GetModuleHandle(NULL);
     monitor = MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     GetScreenSizeFromHMonitor(monitor, monitor_width, monitor_height);
+    // Create the overlay in a thread, this give us the overlay hwnd
+    std::thread([]() { CreateOverlayAndLookingGlass(); }).detach();
+    /// set up the dxgi components
     adapter = GetDefaultAdapter();
     CreateDeviceAndContext(adapter, &d3dDevice, &d3dContext, &d3dfactory);
     dxgiDevice = GetDxgiDevice(d3dDevice);
-
-    //CreateDirect3DDevice(d3dDevice);
-    CreateSwapChain(d3dDevice, monitor_width, monitor_height);
+    swapchain = CreateSwapChain(d3dDevice, monitor_width, monitor_height);
+    // The dxgi capture output buffer
     Create2DTexture(&desktopTexture, monitor_width, monitor_height);
-    //CreateD2DDevice(
-    //    dxgiDevice,
-    //    swapchain,
-    //    &d2dFactory,
-    //    &d2dDevice,
-    //    &d2dContext,
-    //    &dxgiBackBuffer,
-    //    &d2dBitmapBackBuffer);
-    //CreateOverlay();
+    // This will create 2 buffers that point to the same idxgi surface. One is a bitmap you can use with direct comp, the other you can use with 2d texture functions (copy etc)
+    // I dont see anyone else doing this, but it seems to work.
+    CreateD2DDevice();
+    CreateDCompDevice();
+    // So the dxgi surface is a double bound backbuffer. Context rules still apply. No concurrent access. But you can use D2D1 or 2D texture methods before the swap.
+    // Draw a green circle on the screen. I use the rtv for clearing etc.
+    // Render();
+    //CreateRenderTargetView(d3dDevice, swapchain, &renderTargetView, &d2dTextureBackBuffer);
+    //InitializeComputeShader();
+    //CreateDesktopSRV();
     InitializeCapture();
+
     running = true;
     while(true){
         timer.sinceLast();
         CaptureFrame();
+
+        /*CopyDirtyRects();*/
+        /*swapchain->Present(1, 0);*/
+        //std::vector<unsigned int> xy = ScanTexture();
+        //if (xy.size() > 0) {
+        //    xOfWindow = xy[0];
+        //    yOfWindow = xy[1];
+        //}
+        std::cout << "x:" << xOfWindow << " " << "y:" << yOfWindow << "\n";
+
+        Render();
         outputDuplication->ReleaseFrame();
     }
 
@@ -57,7 +79,6 @@ static void InitializeCapture()
         exit(1);
     }
 
-    // Create duplication
     hr = dxgiOutput1->DuplicateOutput(d3dDevice, &outputDuplication);
     dxgiOutput1->Release();
     dxgiOutput1 = nullptr;

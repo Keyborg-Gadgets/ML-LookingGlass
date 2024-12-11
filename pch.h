@@ -16,7 +16,7 @@
 // Direct3D Headers
 #include <d3dcompiler.h>
 #include <dcomp.h>
-#include <winrt/windows.graphics.directx.direct3d11.h>
+//#include <winrt/windows.graphics.directx.direct3d11.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
@@ -36,12 +36,12 @@
 #include <winrt/base.h>
 
 // WinRT Headers
-#include <winrt/Windows.Graphics.Capture.h>
-#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
-#include <winrt/Windows.Graphics.DirectX.h>
-#include <windows.graphics.directx.direct3d11.interop.h>
-#include <windows.graphics.capture.h>
-#include <Windows.Graphics.Capture.Interop.h>
-#include <winrt/Windows.Foundation.Metadata.h>
-#include <winrt/Windows.Foundation.h>
-#include <winrt/Windows.Foundation.Collections.h>
+//#include <winrt/Windows.Graphics.Capture.h>
+//#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
+//#include <winrt/Windows.Graphics.DirectX.h>
+//#include <windows.graphics.directx.direct3d11.interop.h>
+//#include <windows.graphics.capture.h>
+//#include <Windows.Graphics.Capture.Interop.h>
+//#include <winrt/Windows.Foundation.Metadata.h>
+//#include <winrt/Windows.Foundation.h>
+//#include <winrt/Windows.Foundation.Collections.h>

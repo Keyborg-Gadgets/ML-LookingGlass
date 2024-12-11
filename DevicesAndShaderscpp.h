@@ -12,10 +12,6 @@ inline void CreateD2DDevice() {
     D2D1_FACTORY_OPTIONS options;
     memset(&options, 0, sizeof(options));
 
-//#if defined(_DEBUG)
-//    options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
-//#endif
-
     hr = D2D1CreateFactory(
         D2D1_FACTORY_TYPE_SINGLE_THREADED,
         __uuidof(ID2D1Factory2),
@@ -94,12 +90,12 @@ HRESULT CopyDirtyRects() {
 
         d3dContext->CopySubresourceRegion(
             d2dTextureBackBuffer,
-            0,              // Destination subresource
-            left,           // x-offset in dest
-            top,            // y-offset in dest
-            0,              // z-offset in dest
+            0,              
+            left,           
+            top,            
+            0,              
             desktopTexture,
-            0,              // Source subresource
+            0,              
             &srcBox
         );
     }
@@ -123,7 +119,7 @@ inline void CreateDCompDevice() {
     assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
 }
 
-// Ok so this is cool. I'm handling it direct by manipulating the surface with a srv, but this is where I started. 
+
 inline void Render() {
     d2dContext->BeginDraw();
 
@@ -161,8 +157,6 @@ inline void Create2DTexture(ID3D11Texture2D** texture, int width, int height) {
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
     HRESULT hr = d3dDevice->CreateTexture2D(&desc, nullptr, texture);
-    if (FAILED(hr))
-        throw winrt::hresult_error(hr, L"Failed to create 2D texture.");
 }
 
 inline void CreateDesktopSRV() {
@@ -286,7 +280,7 @@ void InitializeComputeShader() {
     hr = d3dDevice->CreateSamplerState(&samplerDesc, &samplerState);
     if (FAILED(hr)) {
         std::cerr << "Failed to create sampler state. Error Code: " << hr << std::endl;
-        // Release previously created resources
+        
         outputBufferReadback->Release();
         outputBufferReadback = nullptr;
         outputBufferUAV->Release();
@@ -302,20 +296,20 @@ void InitializeComputeShader() {
 void ScanTexture(ID3D11Texture2D* texture) {
     HRESULT hr;
 
-    // Reset the output buffer to initial values before dispatch
+    
     uint2 initialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
     d3dContext->UpdateSubresource(outputBuffer, 0, nullptr, &initialValue, 0, 0);
 
-    // Get texture description
+    
     D3D11_TEXTURE2D_DESC desc;
     texture->GetDesc(&desc);
 
-    // Ensure the texture format is DXGI_FORMAT_B8G8R8A8_UNORM
+    
     if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
         std::cerr << "Texture format is not DXGI_FORMAT_B8G8R8A8_UNORM." << std::endl;
     }
 
-    // Create the shader resource view (SRV)
+    
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = desc.Format;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
@@ -328,26 +322,26 @@ void ScanTexture(ID3D11Texture2D* texture) {
         std::cerr << "Failed to create shader resource view. Error Code: " << hr << std::endl;
     }
 
-    // Bind the compute shader
+    
     d3dContext->CSSetShader(computeShader, nullptr, 0);
 
-    // Bind shader resource view (SRV) to slot t0
+    
     d3dContext->CSSetShaderResources(0, 1, &srv);
 
-    // Bind unordered access view (UAV) to slot u0
+    
     d3dContext->CSSetUnorderedAccessViews(0, 1, &outputBufferUAV, nullptr);
 
-    // Bind sampler state to slot s0
+    
     d3dContext->CSSetSamplers(0, 1, &samplerState);
 
-    // Calculate dispatch dimensions
+    
     unsigned int dispatchX = (desc.Width + 15) / 16;
     unsigned int dispatchY = (desc.Height + 15) / 16;
 
-    // Dispatch the compute shader
+    
     d3dContext->Dispatch(dispatchX, dispatchY, 1);
 
-    // Unbind the SRV, UAV, and sampler after dispatch to avoid conflicts
+    
     ID3D11ShaderResourceView* nullSRV = nullptr;
     ID3D11UnorderedAccessView* nullUAV = nullptr;
     ID3D11SamplerState* nullSampler = nullptr;
@@ -355,36 +349,90 @@ void ScanTexture(ID3D11Texture2D* texture) {
     d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
     d3dContext->CSSetSamplers(0, 1, &nullSampler);
 
-    // Release the SRV
+    
     srv->Release();
 
-    // Copy the output buffer to the readback buffer
+    
     d3dContext->CopyResource(outputBufferReadback, outputBuffer);
 
-    // Map the readback buffer to read the data
+    
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     hr = d3dContext->Map(outputBufferReadback, 0, D3D11_MAP_READ, 0, &mappedResource);
     if (FAILED(hr)) {
         std::cerr << "Failed to map readback buffer. Error Code: " << hr << std::endl;
     }
 
-    // Read the data
+    
     uint2* outputData = reinterpret_cast<uint2*>(mappedResource.pData);
     uint2 position = outputData[0];
 
-    // Unmap the buffer
+    
     d3dContext->Unmap(outputBufferReadback, 0);
 
-    // Check if a pixel was found
+    
     if (position.x != 0xFFFFFFFF && position.y != 0xFFFFFFFF) {
-        //std::cout << "Pixel found at position: (" << position.x << ", " << position.y << ")" << std::endl;
-        // Return the position as a vector of ints
+        
+        
         xOfWindow = position.x - 10;
         yOfWindow = position.y + 10;
     }
     else {
-        // std::cout << "No matching pixel found." << std::endl;
+        
         xOfWindow = -1;
         yOfWindow = -1;
+    }
+}
+
+static void InitializeCapture()
+{
+    IDXGIOutput* dxgiOutput = nullptr;
+    HRESULT hr = adapter->EnumOutputs(0, &dxgiOutput);
+    if (FAILED(hr) || !dxgiOutput)
+    {
+        exit(1);
+    }
+
+    IDXGIOutput1* dxgiOutput1 = nullptr;
+    hr = dxgiOutput->QueryInterface(__uuidof(IDXGIOutput1), (void**)&dxgiOutput1);
+    dxgiOutput->Release();
+    dxgiOutput = nullptr;
+    if (FAILED(hr) || !dxgiOutput1)
+    {
+        exit(1);
+    }
+
+    hr = dxgiOutput1->DuplicateOutput(d3dDevice, &outputDuplication);
+    dxgiOutput1->Release();
+    dxgiOutput1 = nullptr;
+}
+
+HRESULT CaptureFrame()
+{
+    DXGI_OUTDUPL_FRAME_INFO frameInfo = {};
+    IDXGIResource* desktopResource = nullptr;
+
+    HRESULT hr = outputDuplication->AcquireNextFrame(
+        1000,
+        &frameInfo,
+        &desktopResource
+    );
+
+    if (hr == DXGI_ERROR_WAIT_TIMEOUT)
+    {
+        return S_FALSE;
+    }
+
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+
+    hr = desktopResource->QueryInterface(__uuidof(ID3D11Texture2D), (void**)&desktopTexture);
+    desktopResource->Release();
+    desktopResource = nullptr;
+    if (FAILED(hr))
+    {
+        outputDuplication->ReleaseFrame();
+        return hr;
     }
 }

@@ -5,6 +5,10 @@ HRESULT hr = S_OK;
 int imgsz = 1024;
 int xOfWindow = 0;
 int yOfWindow = 0;
+int xOfMouse = 0;
+int yOfMouse = 0;
+HHOOK hMouseHook = nullptr;
+
 bool running = false;
 HWND overlayHwnd;
 HWND lookingGlassHwnd;

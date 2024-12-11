@@ -1,13 +1,5 @@
 #pragma once
 #include "globals.h"
-#include <windows.h>
-
-void DisableMinimizeButton(HWND hwnd) {
-
-
-    // Update the window to apply the style changes
-    SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-}
 
 void SetStyles(HWND hwnd)
 {
@@ -100,13 +92,13 @@ HICON CreateCustomIcon() {
         for (int x = 0; x < width; ++x) {
             COLORREF color;
             if (y % 3 == 0) {
-                color = RGB(255, 0, 0); // Red
+                color = RGB(255, 0, 0); 
             }
             else if (y % 3 == 1) {
-                color = RGB(0, 255, 0); // Green
+                color = RGB(0, 255, 0); 
             }
             else {
-                color = RGB(0, 0, 255); // Blue
+                color = RGB(0, 0, 255); 
             }
             SetPixel(hdcMem, x, y, color);
         }
@@ -131,14 +123,6 @@ HICON CreateCustomIcon() {
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message)
     {
-    case WM_NCHITTEST: {
-        // Ensure all hit tests pass through the client area
-        LRESULT hit = DefWindowProc(hWnd, message, wParam, lParam);
-        if (hit == HTCLIENT) {
-            return HTTRANSPARENT;
-        }
-        return hit;
-    }
     case WM_WINDOWPOSCHANGING:
     {
         LPWINDOWPOS lpwp = reinterpret_cast<LPWINDOWPOS>(lParam);
@@ -170,13 +154,12 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
         {
             lpwp->y = workArea.bottom - height;
         }
-        //xOfWindow = lpwp->x;
-        //yOfWindow = lpwp->y;
     }
     break;
 
     case WM_DESTROY:
         PostQuitMessage(0);
+        exit(0);
         break;
 
     default:
@@ -185,6 +168,58 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
     return 0;
 }
 
+void MakeInteractive(HWND hwnd, bool makeInteractive) {
+    LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+
+    if (makeInteractive) {
+        // Remove the transparent and no-activate flags
+        exStyle &= ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+    }
+    else {
+        // Add the transparent and no-activate flags
+        exStyle |= (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+    }
+
+    SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+
+    // To ensure the changes take effect immediately:
+    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+        SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+}
+
+
+LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    static bool previouslyInteractive = false;
+    bool windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
+    bool inBounds = false;
+    bool interactive = true;
+
+    if (nCode == HC_ACTION)
+    {
+        PMSLLHOOKSTRUCT pMouseStruct = (PMSLLHOOKSTRUCT)lParam;
+        if (pMouseStruct != nullptr)
+        {
+            if (wParam == WM_MOUSEMOVE)
+            {
+                xOfMouse = pMouseStruct->pt.x;
+                yOfMouse = pMouseStruct->pt.y;
+                windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
+                if (windowAvailable) {
+                    inBounds = (xOfMouse > xOfWindow && xOfMouse < xOfWindow + imgsz &&
+                        yOfMouse < yOfWindow&& yOfMouse > yOfWindow - titleBarHeight);
+                }
+
+                interactive = windowAvailable && inBounds;
+                if (interactive != previouslyInteractive) {
+                    MakeInteractive(lookingGlassHwnd, interactive);
+                    previouslyInteractive = interactive;
+                }
+            }
+        }
+    }
+    return CallNextHookEx(hMouseHook, nCode, wParam, lParam);
+}
 
 void CreateOverlayAndLookingGlass() {
     WNDCLASS wc = {};
@@ -217,7 +252,7 @@ void CreateOverlayAndLookingGlass() {
     SetWindowDisplayAffinity(overlayHwnd, WDA_EXCLUDEFROMCAPTURE);
     SetLayeredWindowAttributes(overlayHwnd, 0, 255, LWA_ALPHA);
 
-    // Register Looking Glass Window
+    
     WNDCLASS wndClass = {};
     wndClass.lpfnWndProc = WindowProc;
     wndClass.hInstance = hInstance;
@@ -229,20 +264,15 @@ void CreateOverlayAndLookingGlass() {
     ATOM classAtoml = RegisterClass(&wndClass);
     assert(classAtoml != 0);
 
-    //dwStyle = (WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME) | WS_VISIBLE;
-    //dwStyle = WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    //DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    //DWORD dwExStyle = WS_EX_OVERLAPPEDWINDOW;
-
     dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    dwExStyle = WS_EX_OVERLAPPEDWINDOW | WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_NOACTIVATE;
+    dwExStyle = WS_EX_OVERLAPPEDWINDOW | WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
 
     RECT rect = { 0, 0, static_cast<LONG>(imgsz), static_cast<LONG>(imgsz) };
     AdjustWindowRectEx(&rect, dwStyle, FALSE, dwExStyle);
 
     lookingGlassHwnd = CreateWindowEx(
         dwExStyle,
-        "LookingGlass",  // Matching the class name with registration
+        "LookingGlass",  
         "Looking Glass",
         dwStyle,
         0, 0,
@@ -259,10 +289,11 @@ void CreateOverlayAndLookingGlass() {
     HICON hIcon = CreateCustomIcon();
     SendMessage(lookingGlassHwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 
-    ShowWindow(lookingGlassHwnd, SW_SHOWDEFAULT);
+
     SetStyles(lookingGlassHwnd);
 
     RemoveFromTaskbar(lookingGlassHwnd);
+    SetWindowsHookEx(WH_MOUSE_LL, LowLevelMouseProc, GetModuleHandle(NULL), 0);
 
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -270,8 +301,3 @@ void CreateOverlayAndLookingGlass() {
         DispatchMessage(&msg);
     }
 }
-
-
-
-
-

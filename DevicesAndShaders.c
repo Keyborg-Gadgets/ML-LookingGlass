@@ -149,55 +149,56 @@ void CreateDeviceAndContext(IDXGIAdapter1* adapter, ID3D11Device1** device,
     ID3D11DeviceContext_Release(base_ctx);
 }
 
-//void CreateD2DDevice(
-//    IDXGIDevice1* dxgiDevice,
-//    IDXGISwapChain1* swapchain,
-//    ID2D1Factory2** d2dFactory,
-//    ID2D1Device1** d2dDevice,
-//    ID2D1DeviceContext** d2dContext,
-//    IDXGISurface2** dxgiBackBuffer,
-//    ID2D1Bitmap1** d2dBitmapBackBuffer
-//) {
-//    HRESULT hr;
-//    D2D1_FACTORY_OPTIONS options;
-//    memset(&options, 0, sizeof(options));
-//
-//#if defined(_DEBUG)
-//    options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
-//#endif
-//
-//    // Create D2D1 Factory
-//    hr = D2D1CreateFactory(
-//        D2D1_FACTORY_TYPE_SINGLE_THREADED,
-//        &IID_ID2D1Factory2,
-//        &options,
-//        (void**)d2dFactory
-//    );
-//    assert(SUCCEEDED(hr) && "Failed to create D2D1 factory");
-//
-//    // Create D2D Device from the DXGIDevice
-//    hr = ID2D1Factory2_CreateDevice(*d2dFactory, (IDXGIDevice*)dxgiDevice, d2dDevice);
-//    assert(SUCCEEDED(hr) && "Failed to create D2D1 device");
-//
-//    // Create D2D Device Context
-//    hr = ID2D1Device_CreateDeviceContext(*d2dDevice, D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext);
-//    assert(SUCCEEDED(hr) && "Failed to create D2D1 device context");
-//
-//    // Get the back buffer as IDXGISurface from the swap chain
-//    hr = IDXGISwapChain1_GetBuffer(swapchain, 0, &IID_IDXGISurface, (void**)dxgiBackBuffer);
-//    assert(SUCCEEDED(hr) && "Failed to get back buffer from swap chain");
-//
-//    // Set bitmap properties
-//    D2D1_BITMAP_PROPERTIES1 bitmapProperties;
-//    memset(&bitmapProperties, 0, sizeof(bitmapProperties));
-//    bitmapProperties.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
-//    bitmapProperties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-//    bitmapProperties.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW;
-//
-//    // Create a D2D1 bitmap from the DXGI surface
-//    hr = ID2D1DeviceContext_CreateBitmapFromDxgiSurface(*d2dContext, *dxgiBackBuffer, &bitmapProperties, d2dBitmapBackBuffer);
-//    assert(SUCCEEDED(hr) && "Failed to create D2D1 bitmap from DXGI surface");
-//
-//    // Set the render target of the D2D device context
-//    ID2D1DeviceContext_SetTarget(*d2dContext, (ID2D1Image*)*d2dBitmapBackBuffer);
-//}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

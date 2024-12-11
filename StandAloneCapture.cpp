@@ -1,46 +1,46 @@
-﻿#include "StandAloneCapture.h"
-
-/// 
-/// 
-///  All variables are defined in globals.h
-///  
-///  
-///  
-
-static void InitializeCapture();
-HRESULT CaptureFrame();
+#include "StandAloneCapture.h"
 Timer timer;
-
 int main()
 {
-    // Get some global screen and system settings
+    // Set up some global info
     hInstance = GetModuleHandle(NULL);
     monitor = MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     GetScreenSizeFromHMonitor(monitor, monitor_width, monitor_height);
-    // Create the overlay in a thread, this give us the overlay hwnd
+    
+    // I don't like when the app pauses if you click things. It's called the modal loop being paused. Threading stuff avoids it. 
     std::thread([]() { CreateOverlayAndLookingGlass(); }).detach();
-    /// set up the dxgi components
+    
+    // Adapters and the sort. This uses the modern dxgi framework. Why is some of it C? C (see, har har har) the faq.
     adapter = GetDefaultAdapter();
     CreateDeviceAndContext(adapter, &d3dDevice, &d3dContext, &d3dfactory);
     dxgiDevice = GetDxgiDevice(d3dDevice);
     swapchain = CreateSwapChain(d3dDevice, monitor_width, monitor_height);
-    // The dxgi capture output buffer
+    
+    // Prep an empty texture for the dxgi capture
     Create2DTexture(&desktopTexture, monitor_width, monitor_height);
-    // This will create 2 buffers that point to the same idxgi surface. One is a bitmap you can use with direct comp, the other you can use with 2d texture functions (copy etc)
-    // I dont see anyone else doing this, but it seems to work.
+    
+    // This gives you 2 vars bound to the same dxgi surface allowing you to use either d2d or 2d texture methods.
     CreateD2DDevice();
     CreateDCompDevice();
     InitializeComputeShader();
+
+    // This is the render target view for the d2dTextureBackBuffer. I use it to clear the texture. 
     CreateRenderTargetView(d3dDevice, swapchain, &renderTargetView, &d2dTextureBackBuffer);
+
     InitializeCapture();
 
     running = true;
-    // There's a thing called a modal loop. If you click on the cmd, it would pause the whole app. So I thread 
-    // everything cause I don't like that.
+
+    SetLayeredWindowAttributes(lookingGlassHwnd, 0, 255, LWA_ALPHA);
+    ShowWindow(lookingGlassHwnd, SW_SHOWDEFAULT);
     std::thread([]() { 
         while (true) {
-            timer.sinceLast();
+            // timer.sinceLast();
             CaptureFrame();
+            // So in the early days of trying to get this just right, I didn't know where my delay was coming from
+            // Is it the getclient functions? Was it updating window properties etc? So I built a compute shader to
+            // Find an icon in the capture texture. It's hella fast and it is guarenteed to be insync with the frame. 
+            // So I left it because it's fun and clever. This is a playground demo too. 
             ScanTexture(desktopTexture);
             if (xOfWindow != -1 && yOfWindow != -1) {
                 D3D11_BOX srcBox;
@@ -55,9 +55,8 @@ int main()
                 d3dContext->CopySubresourceRegion(d2dTextureBackBuffer, 0, static_cast<uint32_t>(xOfWindow),
                     static_cast<uint32_t>(yOfWindow), 0, desktopTexture, 0, &srcBox);
                 swapchain->Present(1, 0);
-                std::cout << "x:" << xOfWindow << " " << "y:" << yOfWindow << "\n";
+                // std::cout << "x:" << xOfWindow << " " << "y:" << yOfWindow << "\n";
             }
-            /*Render();*/
             outputDuplication->ReleaseFrame();
         }
     }).detach();
@@ -69,56 +68,4 @@ int main()
 	return 0;
 }
 
-static void InitializeCapture()
-{
-    IDXGIOutput* dxgiOutput = nullptr;
-    HRESULT hr = adapter->EnumOutputs(0, &dxgiOutput);
-    if (FAILED(hr) || !dxgiOutput)
-    {
-        exit(1);
-    }
 
-    IDXGIOutput1* dxgiOutput1 = nullptr;
-    hr = dxgiOutput->QueryInterface(__uuidof(IDXGIOutput1), (void**)&dxgiOutput1);
-    dxgiOutput->Release();
-    dxgiOutput = nullptr;
-    if (FAILED(hr) || !dxgiOutput1)
-    {
-        exit(1);
-    }
-
-    hr = dxgiOutput1->DuplicateOutput(d3dDevice, &outputDuplication);
-    dxgiOutput1->Release();
-    dxgiOutput1 = nullptr;
-}
-
-HRESULT CaptureFrame()
-{
-    DXGI_OUTDUPL_FRAME_INFO frameInfo = {};
-    IDXGIResource* desktopResource = nullptr;
-
-    HRESULT hr = outputDuplication->AcquireNextFrame(
-        1000, 
-        &frameInfo,
-        &desktopResource
-    );
-
-    if (hr == DXGI_ERROR_WAIT_TIMEOUT)
-    {
-        return S_FALSE;
-    }
-
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-
-    hr = desktopResource->QueryInterface(__uuidof(ID3D11Texture2D), (void**)&desktopTexture);
-    desktopResource->Release();
-    desktopResource = nullptr;
-    if (FAILED(hr))
-    {
-        outputDuplication->ReleaseFrame();
-        return hr;
-    }
-}

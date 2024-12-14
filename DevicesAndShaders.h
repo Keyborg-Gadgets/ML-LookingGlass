@@ -44,6 +44,7 @@ extern "C" {
     );
 
     IDXGISwapChain1* CreateSwapChain(ID3D11Device1* device, int width, int height);
+    IDXGISwapChain1* CreateSwapChainForUAV(ID3D11Device1* device, int width, int height);
 
     void FinalSwap(IDXGISwapChain1* swapchain);
 

@@ -2,11 +2,6 @@
 #include "globals.h"
 #include "DevicesAndShaders.h"
 
-struct uint2 {
-    unsigned int x;
-    unsigned int y;
-};
-
 inline void CreateD2DDevice() {
     HRESULT hr;
     D2D1_FACTORY_OPTIONS options;
@@ -42,68 +37,6 @@ inline void CreateD2DDevice() {
     d2dContext->SetTarget(d2dBitmapBackBuffer);
 }
 
-HRESULT CopyDirtyRects() {
-    UINT requiredSize = 0;
-    hr = outputDuplication->GetFrameDirtyRects(0, nullptr, &requiredSize);
-    if (hr == DXGI_ERROR_MORE_DATA){}
-    else if (FAILED(hr))
-    {
-        return hr;
-    }
-    if (requiredSize == 0)
-    {
-        return S_OK;
-    }
-
-    UINT numRects = requiredSize / sizeof(RECT);
-
-    std::vector<RECT> dirtyRects(numRects);
-
-    hr = outputDuplication->GetFrameDirtyRects(requiredSize, dirtyRects.data(), &requiredSize);
-    if (FAILED(hr))
-    {
-        return hr;
-    }
-
-    D3D11_TEXTURE2D_DESC desc;
-    desktopTexture->GetDesc(&desc);
-
-    for (const auto& rect : dirtyRects)
-    {
-        LONG left = std::max<LONG>(0, rect.left);
-        LONG top = std::max<LONG>(0, rect.top);
-        LONG right = std::min<LONG>(static_cast<LONG>(desc.Width), rect.right);
-        LONG bottom = std::min<LONG>(static_cast<LONG>(desc.Height), rect.bottom);
-
-        if (right <= left || bottom <= top)
-        {
-            continue;
-        }
-
-        D3D11_BOX srcBox;
-        srcBox.left = left;
-        srcBox.top = top;
-        srcBox.front = 0;
-        srcBox.right = right;
-        srcBox.bottom = bottom;
-        srcBox.back = 1;
-
-        d3dContext->CopySubresourceRegion(
-            d2dTextureBackBuffer,
-            0,              
-            left,           
-            top,            
-            0,              
-            desktopTexture,
-            0,              
-            &srcBox
-        );
-    }
-
-    return S_OK;
-}
-
-
 inline void CreateDCompDevice() {
     HRESULT hr = DCompositionCreateDevice(dxgiDevice, __uuidof(IDCompositionDevice), reinterpret_cast<void**>(&dcompDevice));
     assert(SUCCEEDED(hr) && "Failed to create DComposition device");
@@ -118,7 +51,6 @@ inline void CreateDCompDevice() {
     hr = dcompDevice->Commit();
     assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
 }
-
 
 inline void Render() {
     d2dContext->BeginDraw();
@@ -144,7 +76,7 @@ inline void Render() {
     assert(SUCCEEDED(hr) && "Failed to commit DComposition device");
 }
 
-inline void Create2DTexture(ID3D11Texture2D** texture, int width, int height) {
+inline void Create2DTexture(ID3D11Texture2D** texture, int width, int height, bool unordered = false) {
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
     desc.Height = height;
@@ -155,26 +87,45 @@ inline void Create2DTexture(ID3D11Texture2D** texture, int width, int height) {
     desc.SampleDesc.Quality = 0;
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+    if (unordered)
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
 
     HRESULT hr = d3dDevice->CreateTexture2D(&desc, nullptr, texture);
 }
 
-inline void CreateDesktopSRV() {
-    D3D11_TEXTURE2D_DESC desc;
-    desktopTexture->GetDesc(&desc);
+HRESULT CreateUAVFromTexture(ID3D11Device* device, ID3D11Texture2D* texture, ID3D11UnorderedAccessView** uav) {
+    if (!device || !texture || !uav) return E_INVALIDARG;
 
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = desc.Format;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = desc.MipLevels;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-
-
-    hr = d3dDevice->CreateShaderResourceView(desktopTexture, &srvDesc, &desktopShaderResourceView);
+    D3D11_TEXTURE2D_DESC texDesc;
+    texture->GetDesc(&texDesc);
+    D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = texDesc.Format;
+    uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+    uavDesc.Texture2D.MipSlice = 0;
+    HRESULT hr = device->CreateUnorderedAccessView(texture, &uavDesc, uav);
     if (FAILED(hr)) {
-        std::cerr << "Failed to create shader resource view. Error Code: " << hr << std::endl;
-        exit(1);
+        std::cerr << "Failed to create UAV. Error Code: " << hr << std::endl;
     }
+
+    return hr;
+}
+
+HRESULT CreateSRVFromTexture(ID3D11Device* device, ID3D11Texture2D* texture, ID3D11ShaderResourceView** srv) {
+    if (!device || !texture || !srv) return E_INVALIDARG;
+    D3D11_TEXTURE2D_DESC texDesc;
+    texture->GetDesc(&texDesc);
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = texDesc.Format;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    HRESULT hr = device->CreateShaderResourceView(texture, &srvDesc, srv);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create SRV. Error Code: " << hr << std::endl;
+    }
+    return hr;
 }
 
 HRESULT CompileShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3DBlob** blob) {
@@ -192,82 +143,50 @@ HRESULT CompileShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3DBl
     return S_OK;
 }
 
-void InitializeComputeShader() {
-    HRESULT hr;
-    ID3DBlob* csBlob = nullptr;
+HRESULT CreateBuffer(
+    ID3D11Device* device,
+    const D3D11_BUFFER_DESC& desc,
+    const void* initData,
+    ID3D11Buffer** buffer
+) {
+    D3D11_SUBRESOURCE_DATA subresourceData = {};
+    subresourceData.pSysMem = initData;
 
-    hr = CompileShader(L"ComputeShader.hlsl", "CSMain", "cs_5_0", &csBlob);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to compile compute shader. Error Code: " << hr << std::endl;
-        return;
-    }
+    return device->CreateBuffer(&desc, initData ? &subresourceData : nullptr, buffer);
+}
 
-    hr = d3dDevice->CreateComputeShader(
-        csBlob->GetBufferPointer(),
-        csBlob->GetBufferSize(),
-        nullptr,
-        &computeShader
-    );
-    csBlob->Release();
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create compute shader. Error Code: " << hr << std::endl;
-        return;
-    }
+HRESULT CreateUAV(
+    ID3D11Device* device,
+    ID3D11Buffer* buffer,
+    ID3D11UnorderedAccessView** uav
+) {
+    D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+    uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavDesc.Buffer.FirstElement = 0;
+    uavDesc.Buffer.NumElements = 1;
 
-    D3D11_BUFFER_DESC outputBufferDesc = {};
-    outputBufferDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
-    outputBufferDesc.ByteWidth = sizeof(uint2);
-    outputBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    outputBufferDesc.StructureByteStride = sizeof(uint2);
-    outputBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    return device->CreateUnorderedAccessView(buffer, &uavDesc, uav);
+}
 
-    uint2 initialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
-    D3D11_SUBRESOURCE_DATA initData = {};
-    initData.pSysMem = &initialValue;
+HRESULT CreateReadbackBuffer(
+    ID3D11Device* device,
+    size_t size,
+    ID3D11Buffer** buffer
+) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.ByteWidth = static_cast<uint32_t>(size);
+    desc.BindFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-    hr = d3dDevice->CreateBuffer(&outputBufferDesc, &initData, &outputBuffer);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create output buffer. Error Code: " << hr << std::endl;
-        computeShader->Release();
-        computeShader = nullptr;
-        return;
-    }
+    return device->CreateBuffer(&desc, nullptr, buffer);
+}
 
-    D3D11_UNORDERED_ACCESS_VIEW_DESC outputUAVDesc = {};
-    outputUAVDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
-    outputUAVDesc.Format = DXGI_FORMAT_UNKNOWN;
-    outputUAVDesc.Buffer.FirstElement = 0;
-    outputUAVDesc.Buffer.NumElements = 1;
-
-    hr = d3dDevice->CreateUnorderedAccessView(outputBuffer, &outputUAVDesc, &outputBufferUAV);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create UAV for output buffer. Error Code: " << hr << std::endl;
-        outputBuffer->Release();
-        outputBuffer = nullptr;
-        computeShader->Release();
-        computeShader = nullptr;
-        return;
-    }
-
-    D3D11_BUFFER_DESC readbackBufferDesc = {};
-    readbackBufferDesc.Usage = D3D11_USAGE_STAGING;
-    readbackBufferDesc.ByteWidth = sizeof(uint2);
-    readbackBufferDesc.BindFlags = 0;
-    readbackBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    readbackBufferDesc.MiscFlags = 0;
-
-    hr = d3dDevice->CreateBuffer(&readbackBufferDesc, nullptr, &outputBufferReadback);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create readback buffer. Error Code: " << hr << std::endl;
-        outputBufferUAV->Release();
-        outputBufferUAV = nullptr;
-        outputBuffer->Release();
-        outputBuffer = nullptr;
-        computeShader->Release();
-        computeShader = nullptr;
-        return;
-    }
-
+HRESULT SetupSamplerState(
+    ID3D11Device* device,
+    ID3D11SamplerState** samplerState
+) {
     D3D11_SAMPLER_DESC samplerDesc = {};
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -277,110 +196,174 @@ void InitializeComputeShader() {
     samplerDesc.MinLOD = 0;
     samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
-    hr = d3dDevice->CreateSamplerState(&samplerDesc, &samplerState);
+    return device->CreateSamplerState(&samplerDesc, samplerState);
+}
+
+void InitializeComputeShader() {
+    HRESULT hr;
+    ID3DBlob* csBlob = nullptr;
+
+    hr = CompileShader(L"ComputeShader.hlsl", "ScanTexture", "cs_5_0", &csBlob);
     if (FAILED(hr)) {
-        std::cerr << "Failed to create sampler state. Error Code: " << hr << std::endl;
-        
-        outputBufferReadback->Release();
-        outputBufferReadback = nullptr;
-        outputBufferUAV->Release();
-        outputBufferUAV = nullptr;
-        outputBuffer->Release();
-        outputBuffer = nullptr;
-        computeShader->Release();
-        computeShader = nullptr;
+        std::cerr << "Failed to compile compute shader. Error Code: " << hr << std::endl;
         return;
     }
+
+    hr = d3dDevice->CreateComputeShader(csBlob->GetBufferPointer(), csBlob->GetBufferSize(), nullptr, &ScanComputeShader);
+    csBlob->Release();
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create compute shader. Error Code: " << hr << std::endl;
+        return;
+    }
+
+    hr = CompileShader(L"ComputeShader.hlsl", "CopyTexture", "cs_5_0", &csBlob);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to compile compute shader. Error Code: " << hr << std::endl;
+        return;
+    }
+
+    hr = d3dDevice->CreateComputeShader(csBlob->GetBufferPointer(), csBlob->GetBufferSize(), nullptr, &CopyComputeShader);
+    csBlob->Release();
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create compute shader. Error Code: " << hr << std::endl;
+        return;
+    }
+
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+    bufferDesc.ByteWidth = sizeof(xyStruct);
+    bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    bufferDesc.StructureByteStride = sizeof(xyStruct);
+    bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+
+    xyStruct xyInitialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
+    hr = CreateBuffer(d3dDevice, bufferDesc, &xyInitialValue, &xyOutputBuffer);
+    controlStruct controlInitialValue = { 1, 0 };
+    hr = CreateBuffer(d3dDevice, bufferDesc, &controlInitialValue, &controlOutputBuffer);
+    regionStruct regionInitialValue = { imgsz, imgsz };
+    hr = CreateBuffer(d3dDevice, bufferDesc, &regionInitialValue, &regionBuffer);
+    hr = CreateUAV(d3dDevice, xyOutputBuffer, &xyOutputBufferUAV);
+    hr = CreateUAV(d3dDevice, controlOutputBuffer, &controlOutputBufferUAV);
+    hr = CreateUAV(d3dDevice, regionBuffer, &regionBufferUAV);
+    hr = CreateReadbackBuffer(d3dDevice, sizeof(xyStruct), &xyOutputBufferReadback);
+    hr = CreateReadbackBuffer(d3dDevice, sizeof(controlStruct), &controlOutputBufferReadback);
+    hr = SetupSamplerState(d3dDevice, &samplerState);
+
+
+    // test
+    bufferDesc = {};
+    uint32_t x = 7;
+    uint32_t y = 7;
+    bufferDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+    bufferDesc.ByteWidth = sizeof(uint32_t);
+    bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    bufferDesc.StructureByteStride = sizeof(uint32_t);
+    bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    hr = CreateBuffer(d3dDevice, bufferDesc, &x, &xBuffer);
+    hr = CreateBuffer(d3dDevice, bufferDesc, &y, &yBuffer);
+    hr = CreateUAV(d3dDevice, xBuffer, &xUAV);
+    hr = CreateUAV(d3dDevice, yBuffer, &yUAV);
+
+    return;
 }
 
 void ScanTexture(ID3D11Texture2D* texture) {
     HRESULT hr;
 
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    ID3D11UnorderedAccessView* nullUAV = nullptr;
+    ID3D11SamplerState* nullSampler = nullptr;
     
-    uint2 initialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
-    d3dContext->UpdateSubresource(outputBuffer, 0, nullptr, &initialValue, 0, 0);
+    xyStruct initialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
+    d3dContext->UpdateSubresource(xyOutputBuffer, 0, nullptr, &initialValue, 0, 0);
 
-    
+    controlStruct controlInitialValue = { 1, 0 };
+    d3dContext->UpdateSubresource(controlOutputBuffer, 0, nullptr, &controlInitialValue, 0, 0);
+
+    regionStruct regionInitialValue = { imgsz, imgsz };
+    d3dContext->UpdateSubresource(regionBuffer, 0, nullptr, &regionInitialValue, 0, 0);
+
     D3D11_TEXTURE2D_DESC desc;
     texture->GetDesc(&desc);
 
-    
     if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
         std::cerr << "Texture format is not DXGI_FORMAT_B8G8R8A8_UNORM." << std::endl;
     }
 
+    hr = CreateSRVFromTexture(d3dDevice, desktopTexture, &desktopShaderResourceView);
+    hr = CreateUAVFromTexture(d3dDevice, cudaTexture, &cudaTextureUAV);
+    hr = CreateUAVFromTexture(d3dDevice, outputTexture, &outputTextureUAV);
     
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = desc.Format;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = desc.MipLevels;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-
-    ID3D11ShaderResourceView* srv = nullptr;
-    hr = d3dDevice->CreateShaderResourceView(texture, &srvDesc, &srv);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create shader resource view. Error Code: " << hr << std::endl;
-    }
-
+    d3dContext->CSSetShader(ScanComputeShader, nullptr, 0);
     
-    d3dContext->CSSetShader(computeShader, nullptr, 0);
-
+    d3dContext->CSSetShaderResources(0, 1, &desktopShaderResourceView);
     
-    d3dContext->CSSetShaderResources(0, 1, &srv);
-
-    
-    d3dContext->CSSetUnorderedAccessViews(0, 1, &outputBufferUAV, nullptr);
-
-    
+    d3dContext->CSSetUnorderedAccessViews(0, 1, &controlOutputBufferUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(1, 1, &xyOutputBufferUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(2, 1, &regionBufferUAV, nullptr);
     d3dContext->CSSetSamplers(0, 1, &samplerState);
+    d3dContext->CSSetUnorderedAccessViews(3, 1, &cudaTextureUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(4, 1, &outputTextureUAV, nullptr);
 
-    
-    unsigned int dispatchX = (desc.Width + 15) / 16;
-    unsigned int dispatchY = (desc.Height + 15) / 16;
-
-    
+    unsigned int dispatchX = (monitor_width + 31) / 32;
+    unsigned int dispatchY = (monitor_height + 31) / 32;
     d3dContext->Dispatch(dispatchX, dispatchY, 1);
 
-    
-    ID3D11ShaderResourceView* nullSRV = nullptr;
-    ID3D11UnorderedAccessView* nullUAV = nullptr;
-    ID3D11SamplerState* nullSampler = nullptr;
     d3dContext->CSSetShaderResources(0, 1, &nullSRV);
     d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
     d3dContext->CSSetSamplers(0, 1, &nullSampler);
+    d3dContext->CSSetUnorderedAccessViews(3, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(4, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(5, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(6, 1, &nullUAV, nullptr);
+    d3dContext->CopyResource(xyOutputBufferReadback, xyOutputBuffer);
 
-    
-    srv->Release();
-
-    
-    d3dContext->CopyResource(outputBufferReadback, outputBuffer);
-
-    
     D3D11_MAPPED_SUBRESOURCE mappedResource;
-    hr = d3dContext->Map(outputBufferReadback, 0, D3D11_MAP_READ, 0, &mappedResource);
+    hr = d3dContext->Map(xyOutputBufferReadback, 0, D3D11_MAP_READ, 0, &mappedResource);
     if (FAILED(hr)) {
         std::cerr << "Failed to map readback buffer. Error Code: " << hr << std::endl;
     }
 
+    xyStruct* outputData = reinterpret_cast<xyStruct*>(mappedResource.pData);
+    xOfWindow = outputData->x;
+    yOfWindow = outputData->y;
     
-    uint2* outputData = reinterpret_cast<uint2*>(mappedResource.pData);
-    uint2 position = outputData[0];
+    d3dContext->Unmap(xyOutputBufferReadback, 0);
 
-    
-    d3dContext->Unmap(outputBufferReadback, 0);
-
-    
-    if (position.x != 0xFFFFFFFF && position.y != 0xFFFFFFFF) {
-        
-        
-        xOfWindow = position.x - 10;
-        yOfWindow = position.y + 10;
-    }
-    else {
-        
+    if (xOfWindow == 0xFFFFFFFF || yOfWindow == 0xFFFFFFFF) {
         xOfWindow = -1;
         yOfWindow = -1;
     }
+
+
+    //initialValue = { xOfWindow, yOfWindow };
+    //d3dContext->UpdateSubresource(xyOutputBuffer, 0, nullptr, &initialValue, 0, 0);
+    d3dContext->UpdateSubresource(xBuffer, 0, nullptr, &xOfWindow, 0, 0);
+    d3dContext->UpdateSubresource(yBuffer, 0, nullptr, &yOfWindow, 0, 0);
+    d3dContext->CSSetShader(CopyComputeShader, nullptr, 0);
+    d3dContext->CSSetShaderResources(0, 1, &desktopShaderResourceView);
+    d3dContext->CSSetUnorderedAccessViews(0, 1, &controlOutputBufferUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(1, 1, &xyOutputBufferUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(2, 1, &regionBufferUAV, nullptr);
+    d3dContext->CSSetSamplers(0, 1, &samplerState);
+    d3dContext->CSSetUnorderedAccessViews(3, 1, &cudaTextureUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(4, 1, &outputTextureUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(5, 1, &xUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(6, 1, &yUAV, nullptr);
+    dispatchX = (monitor_width + 31) / 32;
+    dispatchY = (monitor_height + 31) / 32;
+    d3dContext->Dispatch(dispatchX, dispatchY, 1);
+    d3dContext->CSSetShaderResources(0, 1, &nullSRV);
+    d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
+    d3dContext->CSSetSamplers(0, 1, &nullSampler);
+    d3dContext->CSSetUnorderedAccessViews(3, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(4, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(5, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(6, 1, &nullUAV, nullptr);
+
+    desktopShaderResourceView->Release();
+    cudaTextureUAV->Release();
+    outputTextureUAV->Release();
 }
 
 static void InitializeCapture()

@@ -50,11 +50,10 @@ inline void GetTitleBarHeight(HWND hwnd) {
     ptinfo->cbSize = sizeof(TITLEBARINFOEX);
     SendMessage(hwnd, WM_GETTITLEBARINFOEX, 0, (LPARAM)ptinfo);
     titleBarHeight = ptinfo->rcTitleBar.bottom - ptinfo->rcTitleBar.top;
-    titleBarWidth = ptinfo->rcTitleBar.right - ptinfo->rcTitleBar.left;
     free(ptinfo);
 }
 
-void GetScreenSizeFromHMonitor(HMONITOR hMonitor, int& width, int& height) {
+void GetScreenSizeFromHMonitor(HMONITOR hMonitor, unsigned int& width, unsigned int& height) {
     MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
     if (GetMonitorInfo(hMonitor, &monitorInfo)) {
         width = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;

@@ -8,6 +8,8 @@
 #include <thread>
 #include <vector>
 #include <shobjidl.h>
+#include <cmath>
+#include <algorithm>
 
 #include <windows.h>
 #include <Unknwn.h>

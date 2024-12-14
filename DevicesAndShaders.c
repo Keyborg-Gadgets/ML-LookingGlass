@@ -59,6 +59,109 @@ IDXGISwapChain1 *CreateSwapChain(ID3D11Device1 *device, int width, int height) {
   return swapchain;
 }
 
+void GenerateRandomString(char* str, size_t length) {
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    for (size_t i = 0; i < length - 1; i++) {
+        str[i] = charset[rand() % (sizeof(charset) - 1)];
+    }
+    str[length - 1] = '\0';
+}
+
+BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
+    MONITORINFO monitorInfo;
+    monitorInfo.cbSize = sizeof(MONITORINFO);
+
+    if (GetMonitorInfo(hMonitor, &monitorInfo)) {
+        RECT rect = monitorInfo.rcMonitor;
+        int width = rect.right - rect.left;
+        int height = rect.bottom - rect.top;
+
+        // Store width and height in the pointer passed via dwData
+        int* dimensions = (int*)dwData;
+        dimensions[0] = width;
+        dimensions[1] = height;
+
+        // Stop enumerating after the first monitor
+        return FALSE;
+    }
+    return TRUE; // Continue enumeration
+}
+
+void GetFirstMonitorSize(int* width, int* height) {
+    int dimensions[2] = { 0, 0 };
+    EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, (LPARAM)dimensions);
+    *width = dimensions[0];
+    *height = dimensions[1];
+}
+
+IDXGISwapChain1* CreateSwapChainForUAV(ID3D11Device1* device, int width, int height) {
+    char className[16];
+    GenerateRandomString(className, sizeof(className));
+    HINSTANCE hInstance = GetModuleHandle(NULL);
+    WNDCLASS wc = { 0 };
+    wc.lpfnWndProc = DefWindowProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = className;
+
+    RegisterClass(&wc);
+
+    // Create the window with 0 size and never show it
+    HWND hwndDummy = CreateWindowEx(
+        WS_EX_TOOLWINDOW | WS_EX_LAYERED,                   // Optional window styles
+        className,          // Window class name
+        className,      // Window title
+        WS_OVERLAPPEDWINDOW, // Window style
+        width, height, width, height,          // Position and size (0 size window)
+        NULL,                // Parent window
+        NULL,                // Menu
+        hInstance,           // Instance handle
+        NULL                 // Additional application data
+    );
+
+    ShowWindow(hwndDummy, SW_SHOWMINNOACTIVE);
+
+    HRESULT hr = 0;
+    IDXGIDevice1* dxgi_dev = NULL;
+    hr = ID3D11Device_QueryInterface(device, &IID_IDXGIDevice1,
+        (void**)&dxgi_dev);
+    assert(SUCCEEDED(hr));
+
+    IDXGIAdapter1* adapter = NULL;
+    hr = IDXGIDevice_GetParent(dxgi_dev, &IID_IDXGIAdapter1, (void**)&adapter);
+    assert(SUCCEEDED(hr));
+
+    IDXGIFactory2* factory = NULL;
+    hr = IDXGIAdapter1_GetParent(adapter, &IID_IDXGIFactory2, (void**)&factory);
+    assert(SUCCEEDED(hr));
+
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {
+    .Width = width,
+    .Height = height,
+    .Format = DXGI_FORMAT_B8G8R8A8_UNORM,
+    .SampleDesc = {.Count = 1 },
+    .BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS,
+    .BufferCount = 3,
+    .Scaling = DXGI_SCALING_NONE,
+    .Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING,
+    .SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
+    .AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED
+    };
+
+    IDXGISwapChain1* swapchain = NULL;
+    hr = IDXGIFactory2_CreateSwapChainForHwnd(
+        factory,
+        (IUnknown*)device,
+        hwndDummy,              
+        &swapChainDesc,
+        NULL,                   
+        NULL,                   
+        &swapchain
+    );
+    assert(SUCCEEDED(hr));
+
+    return swapchain;
+}
+
 void FinalSwap(IDXGISwapChain1 *swapchain) {
   IDXGISwapChain1_Present(swapchain, 1, 0);
 }
@@ -121,7 +224,7 @@ void CreateDeviceAndContext(IDXGIAdapter1* adapter, ID3D11Device1** device,
     hr = D3D11CreateDevice(
         (IDXGIAdapter*)adapter, 
         D3D_DRIVER_TYPE_UNKNOWN, 
-        NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT, feature_levels,
+        NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG, feature_levels,
         ARRAYSIZE(feature_levels), D3D11_SDK_VERSION, &base_device, NULL,
         &base_ctx);
     assert(SUCCEEDED(hr));

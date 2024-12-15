@@ -76,15 +76,13 @@ BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMoni
         int width = rect.right - rect.left;
         int height = rect.bottom - rect.top;
 
-        // Store width and height in the pointer passed via dwData
         int* dimensions = (int*)dwData;
         dimensions[0] = width;
         dimensions[1] = height;
 
-        // Stop enumerating after the first monitor
         return FALSE;
     }
-    return TRUE; // Continue enumeration
+    return TRUE; 
 }
 
 void GetFirstMonitorSize(int* width, int* height) {
@@ -159,10 +157,6 @@ IDXGISwapChain1* CreateSwapChainForUAV(ID3D11Device1* device, int width, int hei
     assert(SUCCEEDED(hr));
 
     return swapchain;
-}
-
-void FinalSwap(IDXGISwapChain1 *swapchain) {
-  IDXGISwapChain1_Present(swapchain, 1, 0);
 }
 
 void Cleanup(ID3D11DeviceContext1 **ctx, ID3D11Device1 **device,

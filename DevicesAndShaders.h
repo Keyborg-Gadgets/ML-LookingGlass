@@ -23,12 +23,9 @@
 
 #include <d2d1_3.h>
 
-#pragma comment(lib, "d2d1.lib")
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "dxgi.lib")
+
 
 #include <assert.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,28 +42,13 @@ extern "C" {
 
     IDXGISwapChain1* CreateSwapChain(ID3D11Device1* device, int width, int height);
     IDXGISwapChain1* CreateSwapChainForUAV(ID3D11Device1* device, int width, int height);
-
-    void FinalSwap(IDXGISwapChain1* swapchain);
-
-    void Cleanup(
-        ID3D11DeviceContext1** ctx,
-        ID3D11Device1** device,
-        IDXGISwapChain1** swapchain,
-        ID3D11RenderTargetView** rtv,
-        ID3D11Texture2D** texture,
-        ID3D11Texture2D** backBuffer
-    );
-
     IDXGIAdapter1* GetDefaultAdapter();
     IDXGIDevice1* GetDxgiDevice(ID3D11Device1* device);
 
     void CreateRenderTargetView(ID3D11Device1* device, IDXGISwapChain1* swapchain, ID3D11RenderTargetView** rtv, ID3D11Texture2D** backBuffer);
-    void RenderTextureToBackBuffer(ID3D11DeviceContext1* ctx, ID3D11Texture2D* texture, ID3D11Texture2D* backBuffer);
-
 #ifdef __cplusplus
 }
 #endif
-
 #endif
 
 

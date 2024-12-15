@@ -345,12 +345,15 @@ void CreateOverlayAndLookingGlass() {
     RECT rect = { 0, 0, static_cast<LONG>(imgsz), static_cast<LONG>(imgsz) };
     AdjustWindowRectEx(&rect, dwStyle, FALSE, dwExStyle);
 
+    int x = (monitor_width - imgsz) / 2;
+    int y = (monitor_height - imgsz) / 2;
+
     lookingGlassHwnd = CreateWindowEx(
         dwExStyle,
         "LookingGlass",  
         "Looking Glass",
         dwStyle,
-        0, 0,
+        x, y,
         rect.right - rect.left,
         rect.bottom - rect.top,
         NULL,

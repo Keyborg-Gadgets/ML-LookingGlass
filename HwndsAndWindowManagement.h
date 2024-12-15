@@ -1,5 +1,39 @@
 #pragma once
 #include "globals.h"
+#include <windows.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+
+#include <windows.h>
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+
+// Function to darken the color
+COLORREF DarkenColor(COLORREF color, double percentage) {
+    BYTE r = GetRValue(color);
+    BYTE g = GetGValue(color);
+    BYTE b = GetBValue(color);
+
+    r = static_cast<BYTE>(r * (1 - percentage));
+    g = static_cast<BYTE>(g * (1 - percentage));
+    b = static_cast<BYTE>(b * (1 - percentage));
+
+    return RGB(r, g, b);
+}
+
+
+
+// Function to set the title bar color
+void SetTitleBarColor(HWND hwnd) {
+    COLORREF currentColor = GetSysColor(COLOR_ACTIVECAPTION);
+    COLORREF darkerColor = DarkenColor(currentColor, 0.17);
+    COLORREF DARK_COLOR = 0x00505050;
+    DwmSetWindowAttribute(
+        hwnd, DWMWINDOWATTRIBUTE::DWMWA_CAPTION_COLOR,
+        &DARK_COLOR, sizeof(DARK_COLOR));
+}
+
+
 
 void SetStyles(HWND hwnd)
 {
@@ -11,17 +45,22 @@ void SetStyles(HWND hwnd)
     if (exStyle == 0) {
         return; 
     }
-    exStyle &= ~WS_MAXIMIZEBOX | ~WS_THICKFRAME;
+    exStyle &= ~WS_MAXIMIZEBOX | ~WS_THICKFRAME | WS_CAPTION;
     SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
 
     LONG style = GetWindowLong(hwnd, GWL_STYLE);
     style &= ~WS_MINIMIZEBOX;
     SetWindowLong(hwnd, GWL_STYLE, style);
 
+    // despite my best efforts the client region is off by 1 for each border.
+    RECT rect = { 0, 0, imgsz + 2, imgsz + 1};
+    AdjustWindowRect(&rect, style, FALSE);
+
     HMENU hMenu = GetSystemMenu(hwnd, FALSE);
     EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_GRAYED);
-    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+    SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top,
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    SetTitleBarColor(hwnd);
 }
 
 
@@ -186,7 +225,39 @@ void MakeInteractive(HWND hwnd, bool makeInteractive) {
         SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
 }
 
+#include <iostream>
 
+// Clamp function
+unsigned int clamp(unsigned int value, unsigned int min, unsigned int max) {
+    if (value < min) {
+        return min;
+    }
+    else if (value > max) {
+        return max;
+    }
+    else {
+        return value;
+    }
+}
+
+
+#undef max
+unsigned int addWithClamp(unsigned int value, int numberToAdd) {
+    // If numberToAdd is negative and its absolute value is greater than value, return 0
+    if (numberToAdd < 0 && static_cast<unsigned int>(-numberToAdd) > value) {
+        return 0;
+    }
+
+    unsigned int result = value + numberToAdd;
+
+    if (numberToAdd > 0 && result < value) {
+        // Overflow occurred
+        return std::numeric_limits<unsigned int>::max();
+    }
+
+    return result;
+}
+int statechecked = 0;
 LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     static bool previouslyInteractive = false;
@@ -199,21 +270,26 @@ LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
         PMSLLHOOKSTRUCT pMouseStruct = (PMSLLHOOKSTRUCT)lParam;
         if (pMouseStruct != nullptr)
         {
-            if (wParam == WM_MOUSEMOVE)
-            {
-                xOfMouse = pMouseStruct->pt.x;
-                yOfMouse = pMouseStruct->pt.y;
-                windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
-                if (windowAvailable) {
-                    inBounds = (xOfMouse > xOfWindow && xOfMouse < xOfWindow + imgsz &&
-                        yOfMouse < yOfWindow&& yOfMouse > yOfWindow - titleBarHeight);
-                }
+            xOfMouse = pMouseStruct->pt.x;
+            yOfMouse = pMouseStruct->pt.y;
+            windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
+            if (windowAvailable) {
+                inBounds = (xOfMouse > xOfWindow && xOfMouse < xOfWindow + imgsz &&
+                    yOfMouse < yOfWindow + 4 && yOfMouse > addWithClamp(yOfWindow, -40));
+            }
 
-                interactive = windowAvailable && inBounds;
-                if (interactive != previouslyInteractive) {
-                    MakeInteractive(lookingGlassHwnd, interactive);
-                    previouslyInteractive = interactive;
-                }
+            if (inBounds) {
+                statechecked = statechecked + 1;
+            }
+            else {
+                statechecked = statechecked - 1;
+            }
+
+            interactive = windowAvailable && inBounds;
+            if (interactive != previouslyInteractive && (statechecked >= 1 || statechecked <= -5)) {
+                statechecked = 0;
+                MakeInteractive(lookingGlassHwnd, interactive);
+                previouslyInteractive = interactive;
             }
         }
     }
@@ -264,7 +340,7 @@ void CreateOverlayAndLookingGlass() {
     assert(classAtoml != 0);
 
     dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    dwExStyle = WS_EX_OVERLAPPEDWINDOW | WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
+    dwExStyle = WS_EX_OVERLAPPEDWINDOW | WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_LAYERED;
 
     RECT rect = { 0, 0, static_cast<LONG>(imgsz), static_cast<LONG>(imgsz) };
     AdjustWindowRectEx(&rect, dwStyle, FALSE, dwExStyle);
@@ -289,11 +365,17 @@ void CreateOverlayAndLookingGlass() {
     SendMessage(lookingGlassHwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 
 
+
     SetStyles(lookingGlassHwnd);
 
     RemoveFromTaskbar(lookingGlassHwnd);
     SetWindowsHookEx(WH_MOUSE_LL, LowLevelMouseProc, GetModuleHandle(NULL), 0);
+    SetLayeredWindowAttributes(lookingGlassHwnd, 0, 255, LWA_ALPHA);
+    ShowWindow(lookingGlassHwnd, SW_SHOWDEFAULT);
+    winDone = true;
 
+
+ 
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);

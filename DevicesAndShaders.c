@@ -105,17 +105,16 @@ IDXGISwapChain1* CreateSwapChainForUAV(ID3D11Device1* device, int width, int hei
 
     RegisterClass(&wc);
 
-    // Create the window with 0 size and never show it
     HWND hwndDummy = CreateWindowEx(
-        WS_EX_TOOLWINDOW | WS_EX_LAYERED,                   // Optional window styles
-        className,          // Window class name
-        className,      // Window title
-        WS_OVERLAPPEDWINDOW, // Window style
-        width, height, width, height,          // Position and size (0 size window)
-        NULL,                // Parent window
-        NULL,                // Menu
-        hInstance,           // Instance handle
-        NULL                 // Additional application data
+        WS_EX_TOOLWINDOW | WS_EX_LAYERED,                   
+        className,         
+        className,      
+        WS_OVERLAPPEDWINDOW, 
+        width, height, width, height,         
+        NULL,               
+        NULL,             
+        hInstance,           
+        NULL               
     );
 
     ShowWindow(hwndDummy, SW_SHOWMINNOACTIVE);
@@ -207,13 +206,6 @@ void CreateRenderTargetView(ID3D11Device1 *device, IDXGISwapChain1 *swapchain,
   assert(SUCCEEDED(hr));
 }
 
-void RenderTextureToBackBuffer(ID3D11DeviceContext1 *ctx,
-                               ID3D11Texture2D *texture,
-                               ID3D11Texture2D *backBuffer) {
-  ID3D11DeviceContext_CopyResource(ctx, (ID3D11Resource *)backBuffer,
-                                   (ID3D11Resource *)texture);
-}
-
 void CreateDeviceAndContext(IDXGIAdapter1* adapter, ID3D11Device1** device,
     ID3D11DeviceContext1** ctx, IDXGIFactory2** d3dfactory) {
     HRESULT hr = 0;
@@ -224,7 +216,7 @@ void CreateDeviceAndContext(IDXGIAdapter1* adapter, ID3D11Device1** device,
     hr = D3D11CreateDevice(
         (IDXGIAdapter*)adapter, 
         D3D_DRIVER_TYPE_UNKNOWN, 
-        NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG, feature_levels,
+        NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT /*| D3D11_CREATE_DEVICE_DEBUG*/, feature_levels,
         ARRAYSIZE(feature_levels), D3D11_SDK_VERSION, &base_device, NULL,
         &base_ctx);
     assert(SUCCEEDED(hr));

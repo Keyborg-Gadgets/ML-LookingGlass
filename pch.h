@@ -10,6 +10,7 @@
 #include <shobjidl.h>
 #include <cmath>
 #include <algorithm>
+#include <atomic>
 
 #include <windows.h>
 #include <Unknwn.h>

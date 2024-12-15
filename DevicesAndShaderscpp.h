@@ -231,38 +231,27 @@ void InitializeComputeShader() {
 
     D3D11_BUFFER_DESC bufferDesc = {};
     bufferDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
-    bufferDesc.ByteWidth = sizeof(xyStruct);
-    bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    bufferDesc.StructureByteStride = sizeof(xyStruct);
-    bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-
-    xyStruct xyInitialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
-    hr = CreateBuffer(d3dDevice, bufferDesc, &xyInitialValue, &xyOutputBuffer);
-    controlStruct controlInitialValue = { 1, 0 };
-    hr = CreateBuffer(d3dDevice, bufferDesc, &controlInitialValue, &controlOutputBuffer);
-    regionStruct regionInitialValue = { imgsz, imgsz };
-    hr = CreateBuffer(d3dDevice, bufferDesc, &regionInitialValue, &regionBuffer);
-    hr = CreateUAV(d3dDevice, xyOutputBuffer, &xyOutputBufferUAV);
-    hr = CreateUAV(d3dDevice, controlOutputBuffer, &controlOutputBufferUAV);
-    hr = CreateUAV(d3dDevice, regionBuffer, &regionBufferUAV);
-    hr = CreateReadbackBuffer(d3dDevice, sizeof(xyStruct), &xyOutputBufferReadback);
-    hr = CreateReadbackBuffer(d3dDevice, sizeof(controlStruct), &controlOutputBufferReadback);
-    hr = SetupSamplerState(d3dDevice, &samplerState);
-
-
-    // test
-    bufferDesc = {};
-    uint32_t x = 7;
-    uint32_t y = 7;
-    bufferDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
     bufferDesc.ByteWidth = sizeof(uint32_t);
     bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     bufferDesc.StructureByteStride = sizeof(uint32_t);
     bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-    hr = CreateBuffer(d3dDevice, bufferDesc, &x, &xBuffer);
-    hr = CreateBuffer(d3dDevice, bufferDesc, &y, &yBuffer);
+  
+    hr = CreateBuffer(d3dDevice, bufferDesc, &xOfWindow, &xBuffer);
+    hr = CreateBuffer(d3dDevice, bufferDesc, &yOfWindow, &yBuffer);
     hr = CreateUAV(d3dDevice, xBuffer, &xUAV);
     hr = CreateUAV(d3dDevice, yBuffer, &yUAV);
+    hr = CreateReadbackBuffer(d3dDevice, sizeof(uint32_t), &xReadback);
+    hr = CreateReadbackBuffer(d3dDevice, sizeof(uint32_t), &yReadback);
+
+    hr = CreateBuffer(d3dDevice, bufferDesc, &imgsz, &regionXBuffer);
+    hr = CreateBuffer(d3dDevice, bufferDesc, &imgsz, &regionYBuffer);
+    hr = CreateUAV(d3dDevice, regionXBuffer, &regionXUAV);
+    hr = CreateUAV(d3dDevice, regionYBuffer, &regionYUAV);
+
+    hr = CreateBuffer(d3dDevice, bufferDesc, &debug, &debugBuffer);
+    hr = CreateUAV(d3dDevice, debugBuffer, &debugUAV);
+
+    hr = SetupSamplerState(d3dDevice, &samplerState);
 
     return;
 }
@@ -274,93 +263,92 @@ void ScanTexture(ID3D11Texture2D* texture) {
     ID3D11UnorderedAccessView* nullUAV = nullptr;
     ID3D11SamplerState* nullSampler = nullptr;
     
-    xyStruct initialValue = { 0xFFFFFFFF, 0xFFFFFFFF };
-    d3dContext->UpdateSubresource(xyOutputBuffer, 0, nullptr, &initialValue, 0, 0);
+    uint32_t x = 0xFFFFFFFF;
+    uint32_t y = 0xFFFFFFFF;
+    d3dContext->UpdateSubresource(xBuffer, 0, nullptr, &x, 0, 0);
+    d3dContext->UpdateSubresource(yBuffer, 0, nullptr, &y, 0, 0);
 
-    controlStruct controlInitialValue = { 1, 0 };
-    d3dContext->UpdateSubresource(controlOutputBuffer, 0, nullptr, &controlInitialValue, 0, 0);
+    d3dContext->UpdateSubresource(regionXBuffer, 0, nullptr, &imgsz, 0, 0);
+    d3dContext->UpdateSubresource(regionYBuffer, 0, nullptr, &imgsz, 0, 0);
 
-    regionStruct regionInitialValue = { imgsz, imgsz };
-    d3dContext->UpdateSubresource(regionBuffer, 0, nullptr, &regionInitialValue, 0, 0);
-
-    D3D11_TEXTURE2D_DESC desc;
-    texture->GetDesc(&desc);
-
-    if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
-        std::cerr << "Texture format is not DXGI_FORMAT_B8G8R8A8_UNORM." << std::endl;
-    }
+    d3dContext->UpdateSubresource(debugBuffer, 0, nullptr, &debug, 0, 0);
 
     hr = CreateSRVFromTexture(d3dDevice, desktopTexture, &desktopShaderResourceView);
     hr = CreateUAVFromTexture(d3dDevice, cudaTexture, &cudaTextureUAV);
     hr = CreateUAVFromTexture(d3dDevice, outputTexture, &outputTextureUAV);
     
     d3dContext->CSSetShader(ScanComputeShader, nullptr, 0);
-    
+
     d3dContext->CSSetShaderResources(0, 1, &desktopShaderResourceView);
-    
-    d3dContext->CSSetUnorderedAccessViews(0, 1, &controlOutputBufferUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(1, 1, &xyOutputBufferUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(2, 1, &regionBufferUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(0, 1, &xUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(1, 1, &yUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(2, 1, &regionXUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(3, 1, &regionYUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(4, 1, &cudaTextureUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(5, 1, &outputTextureUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(6, 1, &debugUAV, nullptr);
+
     d3dContext->CSSetSamplers(0, 1, &samplerState);
-    d3dContext->CSSetUnorderedAccessViews(3, 1, &cudaTextureUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(4, 1, &outputTextureUAV, nullptr);
 
     unsigned int dispatchX = (monitor_width + 31) / 32;
     unsigned int dispatchY = (monitor_height + 31) / 32;
     d3dContext->Dispatch(dispatchX, dispatchY, 1);
 
+    d3dContext->CopyResource(xReadback, xBuffer);
+    d3dContext->CopyResource(yReadback, yBuffer);
+
     d3dContext->CSSetShaderResources(0, 1, &nullSRV);
     d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
-    d3dContext->CSSetSamplers(0, 1, &nullSampler);
+    d3dContext->CSSetUnorderedAccessViews(1, 1, &nullUAV, nullptr);
+    d3dContext->CSSetUnorderedAccessViews(2, 1, &nullUAV, nullptr);
     d3dContext->CSSetUnorderedAccessViews(3, 1, &nullUAV, nullptr);
     d3dContext->CSSetUnorderedAccessViews(4, 1, &nullUAV, nullptr);
     d3dContext->CSSetUnorderedAccessViews(5, 1, &nullUAV, nullptr);
     d3dContext->CSSetUnorderedAccessViews(6, 1, &nullUAV, nullptr);
-    d3dContext->CopyResource(xyOutputBufferReadback, xyOutputBuffer);
 
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    hr = d3dContext->Map(xyOutputBufferReadback, 0, D3D11_MAP_READ, 0, &mappedResource);
+    D3D11_MAPPED_SUBRESOURCE mappedResourceX;
+    D3D11_MAPPED_SUBRESOURCE mappedResourceY;
+    hr = d3dContext->Map(xReadback, 0, D3D11_MAP_READ, 0, &mappedResourceX);
+    hr = d3dContext->Map(yReadback, 0, D3D11_MAP_READ, 0, &mappedResourceY);
     if (FAILED(hr)) {
         std::cerr << "Failed to map readback buffer. Error Code: " << hr << std::endl;
     }
 
-    xyStruct* outputData = reinterpret_cast<xyStruct*>(mappedResource.pData);
-    xOfWindow = outputData->x;
-    yOfWindow = outputData->y;
+    xOfWindow = *reinterpret_cast<uint32_t*>(mappedResourceX.pData);
+    yOfWindow = *reinterpret_cast<uint32_t*>(mappedResourceY.pData);
     
-    d3dContext->Unmap(xyOutputBufferReadback, 0);
+    d3dContext->Unmap(xReadback, 0);
+    d3dContext->Unmap(yReadback, 0);
 
     if (xOfWindow == 0xFFFFFFFF || yOfWindow == 0xFFFFFFFF) {
         xOfWindow = -1;
         yOfWindow = -1;
     }
+    else {
+        d3dContext->CSSetShader(CopyComputeShader, nullptr, 0);
 
+        d3dContext->CSSetShaderResources(0, 1, &desktopShaderResourceView);
+        d3dContext->CSSetUnorderedAccessViews(0, 1, &xUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(1, 1, &yUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(2, 1, &regionXUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(3, 1, &regionYUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(4, 1, &cudaTextureUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(5, 1, &outputTextureUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(6, 1, &debugUAV, nullptr);
 
-    //initialValue = { xOfWindow, yOfWindow };
-    //d3dContext->UpdateSubresource(xyOutputBuffer, 0, nullptr, &initialValue, 0, 0);
-    d3dContext->UpdateSubresource(xBuffer, 0, nullptr, &xOfWindow, 0, 0);
-    d3dContext->UpdateSubresource(yBuffer, 0, nullptr, &yOfWindow, 0, 0);
-    d3dContext->CSSetShader(CopyComputeShader, nullptr, 0);
-    d3dContext->CSSetShaderResources(0, 1, &desktopShaderResourceView);
-    d3dContext->CSSetUnorderedAccessViews(0, 1, &controlOutputBufferUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(1, 1, &xyOutputBufferUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(2, 1, &regionBufferUAV, nullptr);
-    d3dContext->CSSetSamplers(0, 1, &samplerState);
-    d3dContext->CSSetUnorderedAccessViews(3, 1, &cudaTextureUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(4, 1, &outputTextureUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(5, 1, &xUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(6, 1, &yUAV, nullptr);
-    dispatchX = (monitor_width + 31) / 32;
-    dispatchY = (monitor_height + 31) / 32;
-    d3dContext->Dispatch(dispatchX, dispatchY, 1);
-    d3dContext->CSSetShaderResources(0, 1, &nullSRV);
-    d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
-    d3dContext->CSSetSamplers(0, 1, &nullSampler);
-    d3dContext->CSSetUnorderedAccessViews(3, 1, &nullUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(4, 1, &nullUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(5, 1, &nullUAV, nullptr);
-    d3dContext->CSSetUnorderedAccessViews(6, 1, &nullUAV, nullptr);
+        dispatchX = (monitor_width + 31) / 32;
+        dispatchY = (monitor_height + 31) / 32;
+        d3dContext->Dispatch(dispatchX, dispatchY, 1);
 
+        d3dContext->CSSetShaderResources(0, 1, &nullSRV);
+        d3dContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(1, 1, &nullUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(2, 1, &nullUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(3, 1, &nullUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(4, 1, &nullUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(5, 1, &nullUAV, nullptr);
+        d3dContext->CSSetUnorderedAccessViews(6, 1, &nullUAV, nullptr);
+    }
     desktopShaderResourceView->Release();
     cudaTextureUAV->Release();
     outputTextureUAV->Release();

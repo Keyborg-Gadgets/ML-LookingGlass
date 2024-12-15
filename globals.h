@@ -1,15 +1,27 @@
 #pragma once
 #include "pch.h"
-
+#ifdef _DEBUG
+uint32_t debug = 1;
+#endif
+#ifndef _DEBUG
+uint32_t debug = 0;
+#endif
 std::string exeDir;
 HRESULT hr = S_OK;
-uint32_t imgsz = 1024;
+uint32_t imgsz = 900;
 uint32_t enginesz = 640;
-uint32_t xOfWindow = 0;
-uint32_t yOfWindow = 0;
+uint32_t xOfWindow = 0xFFFFFFFF;
+uint32_t yOfWindow = 0xFFFFFFFF;
 uint32_t xOfMouse = 0;
 uint32_t yOfMouse = 0;
 HHOOK hMouseHook = nullptr;
+ULONG currentRes;
+std::atomic<bool> winDone(false);
+
+static bool previouslyInteractive = true;
+bool windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
+bool inBounds = true;
+bool interactive = true;
 
 bool running = false;
 HWND overlayHwnd;
@@ -19,8 +31,8 @@ HINSTANCE hInstance;
 std::atomic<bool> texture_written = false;
 int titleBarHeight;
 
-unsigned int monitor_width = 0;
-unsigned int monitor_height = 0;
+uint32_t monitor_width = 0;
+uint32_t monitor_height = 0;
 
 IDXGIAdapter1* adapter = nullptr;
 
@@ -35,7 +47,7 @@ ID3D11RenderTargetView* renderTargetView = nullptr;
 IDCompositionDevice* dcompDevice = nullptr;
 IDCompositionTarget* dcompTarget = nullptr;
 IDCompositionVisual* dcompVisual = nullptr;
-// 
+
 IDXGISwapChain1* swapchain = nullptr;
 
 IDXGISwapChain1* cudaTextureSwapchain = nullptr;
@@ -56,45 +68,24 @@ ID2D1Bitmap1* d2dBitmapBackBuffer = nullptr;
 ID3D11Texture2D* d2dTextureBackBuffer = nullptr;
 ID3D11Texture2D* desktopTexture = nullptr;
 
-
-
-
-
 ID3D11ShaderResourceView* desktopShaderResourceView = nullptr;
 IDXGIOutputDuplication* outputDuplication = nullptr;
 
 ID3D11ComputeShader* ScanComputeShader = nullptr;
 ID3D11ComputeShader* CopyComputeShader = nullptr;
 
-ID3D11Buffer* xyOutputBuffer = nullptr;
-ID3D11UnorderedAccessView* xyOutputBufferUAV = nullptr;
-ID3D11Buffer* xyOutputBufferReadback = nullptr;
-ID3D11Buffer* controlOutputBuffer = nullptr;
-ID3D11UnorderedAccessView* controlOutputBufferUAV = nullptr;
-ID3D11Buffer* controlOutputBufferReadback = nullptr;
-
-ID3D11Buffer* regionBuffer = nullptr;
-ID3D11UnorderedAccessView* regionBufferUAV = nullptr;
-
 ID3D11Buffer* xBuffer = nullptr;
 ID3D11Buffer* yBuffer = nullptr;
 ID3D11UnorderedAccessView* xUAV = nullptr;
 ID3D11UnorderedAccessView* yUAV = nullptr;
-
-struct xyStruct {
-    uint32_t x;
-    uint32_t y;
-};
-
-struct controlStruct {
-    uint32_t triggerScan;
-    uint32_t scanComplete;
-};
-
-struct regionStruct {
-    uint32_t width;
-    uint32_t height;
-};
+ID3D11Buffer* xReadback = nullptr;
+ID3D11Buffer* yReadback = nullptr;
+ID3D11Buffer* regionXBuffer = nullptr;
+ID3D11Buffer* regionYBuffer = nullptr;
+ID3D11UnorderedAccessView* regionXUAV = nullptr;
+ID3D11UnorderedAccessView* regionYUAV = nullptr;
+ID3D11Buffer* debugBuffer = nullptr;
+ID3D11UnorderedAccessView* debugUAV = nullptr;
 
 ID3D11SamplerState* samplerState = nullptr;
 
@@ -125,5 +116,8 @@ private:
     std::chrono::steady_clock::time_point last_time;
 };
 
+extern "C" NTSYSAPI NTSTATUS NTAPI NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
 
-ID3D11RenderTargetView* rtv;
+
+
+

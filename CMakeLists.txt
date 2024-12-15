@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.14)
 
-project(StandAloneCapture LANGUAGES C CXX)
+project(LookingGlass LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
@@ -22,8 +22,8 @@ include_directories(
 )
 
 add_library(DevicesAndShaders STATIC "DevicesAndShaders.c")
-add_executable (StandAloneCapture "StandAloneCapture.cpp" 
-                                  "StandAloneCapture.h"  
+add_executable (${PROJECT_NAME} "LookingGlass.cpp" 
+                                  "LookingGlass.h"  
                                   "HwndsAndWindowManagement.h" 
                                   "pch.h" 
                                   "globals.h" 
@@ -50,4 +50,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     d3dcompiler
     ${PROJECT_SOURCE_DIR}/Onnx/lib/onnxruntime.lib
 )
+
+set(POWERSHELL_SCRIPT  ${CMAKE_CURRENT_SOURCE_DIR}/CopyShader.ps1)
+
+add_custom_target(run_powershell_script ALL
+    COMMAND powershell -ExecutionPolicy Bypass -File ${POWERSHELL_SCRIPT}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Running PowerShell script after build..."
+)
+
+add_dependencies(${PROJECT_NAME} run_powershell_script)
 

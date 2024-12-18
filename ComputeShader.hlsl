@@ -136,6 +136,3 @@ void CopyTexture(uint3 dispatchThreadID : SV_DispatchThreadID)
         }
     }
 }
-
-
-

@@ -20,10 +20,7 @@
 #include <d3d11.h>
 #include <assert.h>
 #include <string.h>
-
 #include <d2d1_3.h>
-
-
 
 #include <assert.h>
 #ifdef __cplusplus
@@ -50,5 +47,3 @@ extern "C" {
 }
 #endif
 #endif
-
-

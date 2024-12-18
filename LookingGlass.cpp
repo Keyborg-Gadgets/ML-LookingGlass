@@ -2,6 +2,12 @@
 Timer timer;
 int main()
 {
+    // Show/Hide the console window for debug vs release
+    HWND chwnd = GetConsoleWindow();
+    ShowWindow(chwnd, SW_HIDE);
+#ifdef _DEBUG
+    ShowWindow(chwnd, SW_SHOW);
+#endif
     // Gotta go fast.
     NtSetTimerResolution(5000, TRUE, &currentRes);
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
@@ -12,15 +18,17 @@ int main()
     monitor = MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     GetScreenSizeFromHMonitor(monitor, monitor_width, monitor_height);
 
-    // Create window, cool stuff in here.
+    // Create window, cool stuff in here. Idk what blocks what doesn't. I don't think you can escape the modal loop
+    // but the window and message pumps get their own thread.
     std::thread([]() { CreateOverlayAndLookingGlass(); }).detach();
     
-    // Adapters and the sort. This uses the modern dxgi framework. Why is some of it C? C (see, har har har) the faq.
-    // Create a DXGI adapter. The is the foundation for global directx operations. If you play with this code just be 
-    // aware that there's tiny nuances. Shit just wont work and you won't know whats going on. If you get into shared 
-    // textures and mutexes for example the sharing flags are different vs traditional. Nothing is thread safe in terms
-    // of the device context currently. All my operations are primed and operate in the same thread. You can look into 
-    // enter graphics if you need true threading. I don't use it here but this has the d3d11_4 header see:ID3D11Multithread 
+    // Adapters and the sort. This uses the modern dxgi framework, the foundation for global directx operations. If you 
+    // play with this code just be aware that there's tiny nuances. Shit just wont work and you won't know whats going on. 
+    // If you get into shared textures and mutexes for example the sharing flags are different vs traditional. Nothing is 
+    // thread safe in terms of the device context currently. All my operations are primed and operate in the same thread. 
+    // You can look into enter graphics if you need true threading. I don't use it, but this has d3d11_4.h see:ID3D11Multithread
+    // I think they're called resource bariers. I'll talk about it in DevicesAndShaderscpp.h, but even within a thread you must
+    // cause the context to flush the resource
     adapter = GetDefaultAdapter();
     CreateDeviceAndContext(adapter, &d3dDevice, &d3dContext, &d3dfactory);
     dxgiDevice = GetDxgiDevice(d3dDevice);
@@ -47,20 +55,17 @@ int main()
     while (!winDone) {};
     // Start the ixdgi capture session
     InitializeCapture();
-    running = true;
 
-    HWND hwnd = GetConsoleWindow();
-    ShowWindow(hwnd, SW_HIDE);
-#ifdef _DEBUG
-    ShowWindow(hwnd, SW_SHOW);
-#endif
+    InitializeOnnx();
+
     std::thread([]() { 
-        while (true) {
+        while (running) {
 #ifdef _DEBUG
             timer.sinceLast();
 #endif
+            // Request a dxgi frame
             CaptureFrame();
-
+            // There's very few sceneraios you can get something infront of the window. If you do, we put it on top.
             if (xOfWindow == -1 || yOfWindow == -1) {
                 int x = (monitor_width - imgsz) / 2;
                 int y = (monitor_height - imgsz) / 2;
@@ -70,8 +75,18 @@ int main()
             // an issue with calculating the screen space, so I wanted a way to know I was in sync with the frame. I create a special
             // ICON for the looking glass window and I scan for it using a compute shader. I figured I might as well copy and interpolate
             // there as well. It ended up working really well. I could use a single structured buffer but something was weird and I decided
-            // not to play with it and just use a single uint. 
+            // not to play with it and just use a single uint x times. Cool stuff in here.
             ScanTexture(desktopTexture);
+            // outputTexture at this point is a texture the size of the screen with an alpha channel that is transparent
+            // around the imgsz and the imgsz region it's self is a reflection of the desktop. You also have an interpolated
+            // cuda array that is sized to be used with the model.
+            if (!cudaTextureOrt) {
+                CreateOnnxValueFromTexture(cudaTexture);
+            } else {
+                UpdateOnnxValueFromTexture(cudaTexture);
+            }
+            Detect();
+
             d3dContext->CopyResource(d2dTextureBackBuffer, outputTexture);
 #ifdef _DEBUG
             // This shows your interpolated texture
@@ -95,8 +110,8 @@ int main()
         }
     }).detach();
 
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+    while (running) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     };
 
 	return 0;

@@ -253,7 +253,9 @@ void InitializeComputeShader() {
 
     hr = SetupSamplerState(d3dDevice, &samplerState);
 
-    return;
+    cudaError_t err = cudaGraphicsD3D11RegisterResource(&cudaResource, cudaTexture, cudaGraphicsRegisterFlagsNone);
+    if (err != cudaSuccess) {
+    }
 }
 
 void ScanTexture(ID3D11Texture2D* texture) {

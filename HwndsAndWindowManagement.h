@@ -1,12 +1,5 @@
 #pragma once
 #include "globals.h"
-#include <windows.h>
-#include <dwmapi.h>
-#pragma comment(lib, "dwmapi.lib")
-
-#include <windows.h>
-#include <dwmapi.h>
-#pragma comment(lib, "dwmapi.lib")
 
 // Function to darken the color
 COLORREF DarkenColor(COLORREF color, double percentage) {
@@ -20,9 +13,6 @@ COLORREF DarkenColor(COLORREF color, double percentage) {
 
     return RGB(r, g, b);
 }
-
-
-
 // Function to set the title bar color
 void SetTitleBarColor(HWND hwnd) {
     COLORREF currentColor = GetSysColor(COLOR_ACTIVECAPTION);
@@ -32,8 +22,6 @@ void SetTitleBarColor(HWND hwnd) {
         hwnd, DWMWINDOWATTRIBUTE::DWMWA_CAPTION_COLOR,
         &DARK_COLOR, sizeof(DARK_COLOR));
 }
-
-
 
 void SetStyles(HWND hwnd)
 {
@@ -62,7 +50,6 @@ void SetStyles(HWND hwnd)
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
     SetTitleBarColor(hwnd);
 }
-
 
 void RemoveFromTaskbar(HWND hwnd)
 {
@@ -196,6 +183,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
     break;
 
     case WM_DESTROY:
+        running = false;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        cleanup();
         PostQuitMessage(0);
         exit(0);
         break;
@@ -225,9 +215,6 @@ void MakeInteractive(HWND hwnd, bool makeInteractive) {
         SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
 }
 
-#include <iostream>
-
-// Clamp function
 unsigned int clamp(unsigned int value, unsigned int min, unsigned int max) {
     if (value < min) {
         return min;
@@ -239,7 +226,6 @@ unsigned int clamp(unsigned int value, unsigned int min, unsigned int max) {
         return value;
     }
 }
-
 
 #undef max
 unsigned int addWithClamp(unsigned int value, int numberToAdd) {
@@ -257,6 +243,7 @@ unsigned int addWithClamp(unsigned int value, int numberToAdd) {
 
     return result;
 }
+
 int statechecked = 0;
 LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -326,7 +313,6 @@ void CreateOverlayAndLookingGlass() {
 
     SetWindowDisplayAffinity(overlayHwnd, WDA_EXCLUDEFROMCAPTURE);
     SetLayeredWindowAttributes(overlayHwnd, 0, 255, LWA_ALPHA);
-
     
     WNDCLASS wndClass = {};
     wndClass.lpfnWndProc = WindowProc;
@@ -367,8 +353,6 @@ void CreateOverlayAndLookingGlass() {
     HICON hIcon = CreateCustomIcon();
     SendMessage(lookingGlassHwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 
-
-
     SetStyles(lookingGlassHwnd);
 
     RemoveFromTaskbar(lookingGlassHwnd);
@@ -377,10 +361,8 @@ void CreateOverlayAndLookingGlass() {
     ShowWindow(lookingGlassHwnd, SW_SHOWDEFAULT);
     winDone = true;
 
-
- 
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    while (GetMessage(&msg, NULL, 0, 0) && running) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }

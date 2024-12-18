@@ -1,17 +1,20 @@
 #pragma once
 #include "pch.h"
+
 #ifdef _DEBUG
 uint32_t debug = 1;
 #endif
 #ifndef _DEBUG
 uint32_t debug = 0;
 #endif
+
+float* rgbCudaArray;
 std::string exeDir;
 HRESULT hr = S_OK;
 uint32_t imgsz = 900;
 uint32_t enginesz = 640;
-uint32_t xOfWindow = 0xFFFFFFFF;
-uint32_t yOfWindow = 0xFFFFFFFF;
+uint32_t xOfWindow = -1;
+uint32_t yOfWindow = -1;
 uint32_t xOfMouse = 0;
 uint32_t yOfMouse = 0;
 HHOOK hMouseHook = nullptr;
@@ -23,7 +26,7 @@ bool windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
 bool inBounds = true;
 bool interactive = true;
 
-bool running = false;
+bool running = true;
 HWND overlayHwnd;
 HWND lookingGlassHwnd;
 HMONITOR monitor;
@@ -89,6 +92,18 @@ ID3D11UnorderedAccessView* debugUAV = nullptr;
 
 ID3D11SamplerState* samplerState = nullptr;
 
+cudaGraphicsResource* cudaResource = nullptr;
+cudaArray_t cudaTextureArray;
+
+// ORT - say it out loud, "ORT" sounds like a frog almost. I hope someone just caught you making weird noises.
+const OrtApi* api;
+OrtSession* session = nullptr;
+OrtEnv* env = nullptr;
+OrtMemoryInfo* info_cuda = nullptr;
+OrtStatus* status;
+OrtValue* cudaTextureOrt = nullptr;
+
+
 inline std::string getExecutableDirectory() {
     char path[MAX_PATH];
     DWORD length = GetModuleFileNameA(NULL, path, MAX_PATH);
@@ -118,6 +133,99 @@ private:
 
 extern "C" NTSYSAPI NTSTATUS NTAPI NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
 
+void SafeRelease(IUnknown* ppT) {
+    if (ppT) {
+       (ppT)->Release();
+        ppT = NULL;
+    }
+}
 
+void cleanup() {
+    // Unhook the mouse hook if set
+    if (hMouseHook) {
+        UnhookWindowsHookEx(hMouseHook);
+        hMouseHook = nullptr;
+    }
 
+    // Release COM and DirectX resources
+    SafeRelease((IUnknown*&)adapter);
+    SafeRelease((IUnknown*&)d3dfactory);
+    SafeRelease((IUnknown*&)d2dFactory);
+    SafeRelease((IUnknown*&)d2dDevice);
+    SafeRelease((IUnknown*&)d2dContext);
+    SafeRelease((IUnknown*&)dxgiDevice);
+    SafeRelease((IUnknown*&)renderTargetView);
+    SafeRelease((IUnknown*&)dcompDevice);
+    SafeRelease((IUnknown*&)dcompTarget);
+    SafeRelease((IUnknown*&)dcompVisual);
+    SafeRelease((IUnknown*&)swapchain);
+    SafeRelease((IUnknown*&)cudaTextureSwapchain);
+    SafeRelease((IUnknown*&)cudaTexture);
+    SafeRelease((IUnknown*&)cudaTextureBackBuffer);
+    SafeRelease((IUnknown*&)cudaTextureUAV);
+    SafeRelease((IUnknown*&)outputTextureSwapchain);
+    SafeRelease((IUnknown*&)outputTexture);
+    SafeRelease((IUnknown*&)outputTextureBackBuffer);
+    SafeRelease((IUnknown*&)outputTextureUAV);
+    SafeRelease((IUnknown*&)d3dDevice);
+    SafeRelease((IUnknown*&)d3dContext);
+    SafeRelease((IUnknown*&)dxgiBackBuffer);
+    SafeRelease((IUnknown*&)d2dBitmapBackBuffer);
+    SafeRelease((IUnknown*&)d2dTextureBackBuffer);
+    SafeRelease((IUnknown*&)desktopTexture);
+    SafeRelease((IUnknown*&)desktopShaderResourceView);
+    SafeRelease((IUnknown*&)outputDuplication);
+    SafeRelease((IUnknown*&)ScanComputeShader);
+    SafeRelease((IUnknown*&)CopyComputeShader);
+    SafeRelease((IUnknown*&)xBuffer);
+    SafeRelease((IUnknown*&)yBuffer);
+    SafeRelease((IUnknown*&)xUAV);
+    SafeRelease((IUnknown*&)yUAV);
+    SafeRelease((IUnknown*&)xReadback);
+    SafeRelease((IUnknown*&)yReadback);
+    SafeRelease((IUnknown*&)regionXBuffer);
+    SafeRelease((IUnknown*&)regionYBuffer);
+    SafeRelease((IUnknown*&)regionXUAV);
+    SafeRelease((IUnknown*&)regionYUAV);
+    SafeRelease((IUnknown*&)debugBuffer);
+    SafeRelease((IUnknown*&)debugUAV);
+    SafeRelease((IUnknown*&)samplerState);
 
+    // Cleanup CUDA resources
+    if (cudaResource) {
+        cudaGraphicsUnregisterResource(cudaResource);
+        cudaResource = nullptr;
+    }
+    if (cudaTextureArray) {
+        cudaFreeArray(cudaTextureArray);
+        cudaTextureArray = nullptr;
+    }
+
+    // Release memory allocated to rgbCudaArray
+    if (rgbCudaArray) {
+        delete[] rgbCudaArray;
+        rgbCudaArray = nullptr;
+    }
+
+    // Cleanup ONNX Runtime resources
+    if (session) {
+        api->ReleaseSession(session);
+        session = nullptr;
+    }
+    if (env) {
+        api->ReleaseEnv(env);
+        env = nullptr;
+    }
+    if (info_cuda) {
+        api->ReleaseMemoryInfo(info_cuda);
+        info_cuda = nullptr;
+    }
+    if (cudaTextureOrt) {
+        api->ReleaseValue(cudaTextureOrt);
+        cudaTextureOrt = nullptr;
+    }
+    if (status) {
+        api->ReleaseStatus(status);
+        status = nullptr;
+    }
+}

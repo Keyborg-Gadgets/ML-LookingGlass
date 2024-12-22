@@ -101,8 +101,15 @@ OrtSession* session = nullptr;
 OrtEnv* env = nullptr;
 OrtMemoryInfo* info_cuda = nullptr;
 OrtStatus* status;
-OrtValue* cudaTextureOrt = nullptr;
-
+OrtValue* scoresValue = nullptr;
+OrtValue* boxesValue = nullptr;
+OrtValue* cudaTextureOrt = nullptr; 
+OrtAllocator* allocator;
+OrtIoBinding* io_binding;
+OrtIoBinding* boxes;
+OrtIoBinding* scores;
+float* d_output0 = nullptr;
+float* d_output1 = nullptr;
 
 inline std::string getExecutableDirectory() {
     char path[MAX_PATH];

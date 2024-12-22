@@ -19,6 +19,10 @@ set_source_files_properties(cudaFunctions.cu PROPERTIES LANGUAGE CUDA)
 
 add_library(cudaFunctions STATIC cudaFunctions.cu)
 
+if(MSVC) 
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>") 
+endif()
+
 include_directories(
     Onnx/include
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/ucrt
@@ -31,6 +35,7 @@ include_directories(
 link_directories(
     ${PROJECT_SOURCE_DIR}/Onnx/lib
     "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/lib/x64"
+    "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/lib"
 )
 
 add_library(DevicesAndShaders STATIC "DevicesAndShaders.c")
@@ -44,7 +49,7 @@ add_executable (${PROJECT_NAME} "LookingGlass.cpp"
                                   "Onnx.h"
                                   "cudaFunctions.cuh")
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(${PROJECT_NAME} PRIVATE 
     DevicesAndShaders
     cudaFunctions
     d3d11
@@ -63,7 +68,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     advapi32 
     d3dcompiler
     onnxruntime
+    onnxruntime_providers_shared
+    onnxruntime_providers_cuda
     cuda
+    cudart
+    cufft
+    curand
+    cublas
+    cudnn
 )
 
 set(POWERSHELL_SCRIPT  ${CMAKE_CURRENT_SOURCE_DIR}/SetStaticBinaryResources.ps1)

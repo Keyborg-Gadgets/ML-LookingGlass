@@ -2,6 +2,8 @@
 #include "globals.h"
 #include "cudaFunctions.cuh"
 
+bool bound = false;
+
 std::vector<std::string> readLabels(const std::string& labelPath) {
     std::vector<std::string> labels;
     std::ifstream infile(labelPath);
@@ -44,7 +46,7 @@ void CreateOnnxValueFromTexture(ID3D11Texture2D* texture) {
     size_t p_data_len = sizeof(float) * 1 * 3 * height * width;
 
     status = api->CreateTensorWithDataAsOrtValue(info_cuda,
-        reinterpret_cast<float*>(rgbCudaArray),
+        rgbCudaArray,
         p_data_len,
         shape,
         shape_len,
@@ -72,72 +74,81 @@ void UpdateOnnxValueFromTexture(ID3D11Texture2D* texture) {
 }
 
 void Detect() {
-    OrtAllocator* allocator;
-    status = api->GetAllocatorWithDefaultOptions(&allocator);
-    if (status != nullptr) {
-        std::cerr << "failed to get allocator" << api->GetErrorMessage(status) << std::endl;
-        api->ReleaseStatus(status);
-        cleanup();
-        exit(1);
-    }
-    size_t numInputNodes, numOutputNodes;
-    status = api->SessionGetInputCount(session, &numInputNodes);
-    if (status != nullptr) {
-        std::cerr << "bad inputs" << api->GetErrorMessage(status) << std::endl;
-        api->ReleaseStatus(status);
-        cleanup();
-        exit(1);
-    }
-    status = api->SessionGetOutputCount(session, &numOutputNodes);
-    if (status != nullptr) {
-        std::cerr << "bad outputs" << api->GetErrorMessage(status) << std::endl;
-        api->ReleaseStatus(status);
-        cleanup();
-        exit(1);
-    }
-    std::vector<char*> inputNames(numInputNodes);
-    std::vector<OrtValue*> inputTensors(numInputNodes);
+    if (!bound) {
+        int64_t shape0[] = { 1, 300, 80 };
+        int64_t shape1[] = { 1, 300, 4 };
 
-    for (size_t i = 0; i < numInputNodes; ++i) {
-        status = api->SessionGetInputName(session, i, allocator, &inputNames[i]);
-        inputTensors[i] = cudaTextureOrt;
-    }
+        int output0_dims[] = { 1, 300, 80 };
+        int output1_dims[] = { 1, 300, 4 };
 
-    std::vector<char*> outputNames(numOutputNodes);
-    for (size_t i = 0; i < numOutputNodes; ++i) {
-        status = api->SessionGetOutputName(session, i, allocator, &outputNames[i]);
-    }
-    std::vector<OrtValue*> outputTensors(numOutputNodes);
+        size_t output0_size = 1 * 300 * 80 * sizeof(float);
+        size_t output1_size = 1 * 300 * 4 * sizeof(float);
 
-    std::cout << "here\n";
+        cudaMalloc(&d_output0, output0_size);
+        cudaMalloc(&d_output1, output1_size);
 
-    status = api->Run(session, nullptr, inputNames.data(), inputTensors.data(), numInputNodes,
-        outputNames.data(), numOutputNodes, outputTensors.data());
-    if (status != nullptr) {
-        std::cerr << "fail detecting" << api->GetErrorMessage(status) << std::endl;
-        api->ReleaseStatus(status);
-        cleanup();
-        exit(1);
-    }
-
-    for (size_t i = 0; i < numOutputNodes; ++i) {
-        OrtTensorTypeAndShapeInfo* info;
-        status = api->GetTensorTypeAndShape(outputTensors[i], &info);
-
-        ONNXTensorElementDataType type;
-        status = api->GetTensorElementType(info, &type);
-        size_t numDims;
-        status = api->GetDimensionsCount(info, &numDims);
-        std::vector<int64_t> outputDims(numDims);
-        status = api->GetDimensions(info, outputDims.data(), numDims);
-
-        std::cout << "Output " << i << " shape: [";
-        for (size_t j = 0; j < numDims; ++j) {
-            std::cout << outputDims[j] << (j < numDims - 1 ? ", " : "");
+        status = api->CreateTensorWithDataAsOrtValue(info_cuda, d_output0, output0_size, 
+            shape0, 3, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &scoresValue);
+        if (status != nullptr) {
+            std::cerr << "failed scores tensor" << api->GetErrorMessage(status) << std::endl;
+            api->ReleaseStatus(status);
+            cleanup();
+            exit(1);
         }
-        std::cout << "]" << std::endl;
+        status = api->CreateTensorWithDataAsOrtValue(info_cuda, d_output1, output1_size,
+            shape1, 3, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &boxesValue);
+        if (status != nullptr) {
+            std::cerr << "failed boxes tensor" << api->GetErrorMessage(status) << std::endl;
+            api->ReleaseStatus(status);
+            cleanup();
+            exit(1);
+        }
 
-        api->ReleaseTensorTypeAndShapeInfo(info);
+        status = api->CreateIoBinding(session, &io_binding);
+        if (status != nullptr) {
+            std::cerr << "bad input binding" << api->GetErrorMessage(status) << std::endl;
+            api->ReleaseStatus(status);
+            cleanup();
+            exit(1);
+        }
+      
+        status = api->BindInput(io_binding, "image", cudaTextureOrt);
+        if (status != nullptr) {
+            std::cerr << "bad binding input" << api->GetErrorMessage(status) << std::endl;
+            api->ReleaseStatus(status);
+            cleanup();
+            exit(1);
+        }
+        status = api->BindOutput(io_binding, "boxes", boxesValue);
+        if (status != nullptr) {
+            std::cerr << "bad binding output boxes" << api->GetErrorMessage(status) << std::endl;
+            api->ReleaseStatus(status);
+            cleanup();
+            exit(1);
+        }
+        status = api->BindOutput(io_binding, "scores", scoresValue);
+        if (status != nullptr) {
+            std::cerr << "bad output boxes" << api->GetErrorMessage(status) << std::endl;
+            api->ReleaseStatus(status);
+            cleanup();
+            exit(1);
+        }
+        bound = true;
+    }
+
+    std::vector<const char*> outputNames = {"scores", "boxes"};
+    std::vector<const char*> inputNames = { "image" };
+    std::vector<OrtValue*> inputTensors = { cudaTextureOrt };
+    std::vector<OrtValue*> outputTensors = { scoresValue , boxesValue };
+    status = api->RunWithBinding(session, Ort::RunOptions(), io_binding);
+    if (status != nullptr) {
+        std::cerr << "Run failed: " << api->GetErrorMessage(status) << std::endl;
+        api->ReleaseStatus(status);
+        cleanup();
+        exit(1);
+    }
+    else {
+        std::cout << "doot";
     }
 }
 
@@ -168,6 +179,17 @@ void InitializeOnnx() {
         exit(1);
     }
 
+    OrtCUDAProviderOptions cuda_options;
+    cuda_options.device_id = deviceId;
+
+    status =  api->SessionOptionsAppendExecutionProvider_CUDA(session_options, &cuda_options);
+    if (status != nullptr) {
+        std::cerr << "Error appending provider: " << api->GetErrorMessage(status) << std::endl;
+        api->ReleaseStatus(status);
+        api->ReleaseEnv(env);
+        exit(1);
+    }
+
     api->SetSessionGraphOptimizationLevel(session_options, ORT_ENABLE_EXTENDED);
     api->SetIntraOpNumThreads(session_options, 1);
 
@@ -189,6 +211,14 @@ void InitializeOnnx() {
     if (status != nullptr) {
         std::cerr << "Error creating memory info: " << api->GetErrorMessage(status) << std::endl;
         api->ReleaseStatus(status);
+        exit(1);
+    }
+
+    status = api->CreateAllocator(session, info_cuda, &allocator);
+    if (status != nullptr) {
+        std::cerr << "failed to get allocator " << api->GetErrorMessage(status) << std::endl;
+        api->ReleaseStatus(status);
+        cleanup();
         exit(1);
     }
 

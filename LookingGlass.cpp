@@ -55,8 +55,12 @@ int main()
     while (!winDone) {};
     // Start the ixdgi capture session
     InitializeCapture();
+    InitRTdetr();
 
-    InitializeOnnx();
+    // There's a commit in there that has a ton of good onnx stuff. The model was probably broken at the
+    // the time but if I gotta get in the bones to figure that out we're just stayin in the bones.
+    // Onnx could be cool. It feels cool. idk, i cant do any more heavy abstractions. I'm fried on it.
+    /*InitializeOnnx();*/
 
     std::thread([]() { 
         while (running) {
@@ -77,21 +81,19 @@ int main()
             // there as well. It ended up working really well. I could use a single structured buffer but something was weird and I decided
             // not to play with it and just use a single uint x times. Cool stuff in here.
             ScanTexture(desktopTexture);
+            outputDuplication->ReleaseFrame();
+            if (xOfWindow == -1 || yOfWindow == -1) {
+                continue;
+            }
             // outputTexture at this point is a texture the size of the screen with an alpha channel that is transparent
             // around the imgsz and the imgsz region it's self is a reflection of the desktop. You also have an interpolated
             // cuda array that is sized to be used with the model.
-            if (!cudaTextureOrt) {
-                CreateOnnxValueFromTexture(cudaTexture);
-            } else {
-                UpdateOnnxValueFromTexture(cudaTexture);
-            }
-            Detect();
-
             d3dContext->CopyResource(d2dTextureBackBuffer, outputTexture);
 #ifdef _DEBUG
             // This shows your interpolated texture
             d3dContext->CopySubresourceRegion(d2dTextureBackBuffer, 0, 0, 0, 0, cudaTexture,0, nullptr);
 #endif
+            Detect();
             if (xOfWindow != -1 && yOfWindow != -1) {
                 D3D11_BOX srcBox;
                 srcBox.left = xOfWindow;
@@ -106,7 +108,6 @@ int main()
                 std::cout << "x:" << xOfWindow << " " << "y:" << yOfWindow << "\n";
 #endif 
             }
-            outputDuplication->ReleaseFrame();
         }
     }).detach();
 

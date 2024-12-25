@@ -28,12 +28,12 @@ include_directories(
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/ucrt
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/um
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/shared
-    ${PROJECT_SOURCE_DIR}/Onnx/include
+    ${PROJECT_SOURCE_DIR}/ModelResources/include
     "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/include"
 )
 
 link_directories(
-    ${PROJECT_SOURCE_DIR}/Onnx/lib
+    ${PROJECT_SOURCE_DIR}/ModelResources/lib
     "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/lib/x64"
     "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/lib"
 )
@@ -46,7 +46,6 @@ add_executable (${PROJECT_NAME} "LookingGlass.cpp"
                                   "globals.h" 
                                   "DevicesAndShaders.h" 
                                   "DevicesAndShaderscpp.h" 
-                                  "Onnx.h"
                                   "cudaFunctions.cuh")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
@@ -67,15 +66,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     user32 
     advapi32 
     d3dcompiler
-    onnxruntime
-    onnxruntime_providers_shared
-    onnxruntime_providers_cuda
     cuda
     cudart
     cufft
     curand
     cublas
     cudnn
+    nvinfer
 )
 
 set(POWERSHELL_SCRIPT  ${CMAKE_CURRENT_SOURCE_DIR}/SetStaticBinaryResources.ps1)

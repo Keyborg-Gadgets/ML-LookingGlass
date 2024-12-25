@@ -16,6 +16,18 @@
 #include <codecvt>
 #include <cmath>
 #include <vector>
+#include<algorithm>
+#include<cstdlib>
+#include<cstring>
+#include<math.h>
+#include<numeric>
+#include<fstream>
+#include<iostream>
+#include<iomanip>
+#include<sstream>
+#include<vector>
+#include<map>
+#include<chrono>
 
 #include <d3dcompiler.h>
 #include <dcomp.h>
@@ -37,9 +49,7 @@
 #include <d2d1_2.h>
 #include <d2d1_3.h>
 
-#include <onnxruntime_c_api.h>
-#include <onnxruntime_cxx_api.h>
-
+#include <NvInfer.h>
 #include <cuda.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>

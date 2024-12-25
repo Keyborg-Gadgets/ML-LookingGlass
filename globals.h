@@ -11,7 +11,7 @@ uint32_t debug = 0;
 float* rgbCudaArray;
 std::string exeDir;
 HRESULT hr = S_OK;
-uint32_t imgsz = 900;
+uint32_t imgsz = 740;
 uint32_t enginesz = 640;
 uint32_t xOfWindow = -1;
 uint32_t yOfWindow = -1;
@@ -94,20 +94,6 @@ ID3D11SamplerState* samplerState = nullptr;
 
 cudaGraphicsResource* cudaResource = nullptr;
 cudaArray_t cudaTextureArray;
-
-// ORT - say it out loud, "ORT" sounds like a frog almost. I hope someone just caught you making weird noises.
-const OrtApi* api;
-OrtSession* session = nullptr;
-OrtEnv* env = nullptr;
-OrtMemoryInfo* info_cuda = nullptr;
-OrtStatus* status;
-OrtValue* scoresValue = nullptr;
-OrtValue* boxesValue = nullptr;
-OrtValue* cudaTextureOrt = nullptr; 
-OrtAllocator* allocator;
-OrtIoBinding* io_binding;
-OrtIoBinding* boxes;
-OrtIoBinding* scores;
 float* d_output0 = nullptr;
 float* d_output1 = nullptr;
 
@@ -148,7 +134,13 @@ void SafeRelease(IUnknown* ppT) {
 }
 
 void cleanup() {
-    // Unhook the mouse hook if set
+    HANDLE hProcess = GetCurrentProcess();
+
+    UINT exitCode = 0;
+
+    // idk I tried to clean up right, we're gunnaaa we'll just uhhh we'll handle this. 
+    TerminateProcess(hProcess, exitCode);
+
     if (hMouseHook) {
         UnhookWindowsHookEx(hMouseHook);
         hMouseHook = nullptr;
@@ -212,27 +204,5 @@ void cleanup() {
     if (rgbCudaArray) {
         delete[] rgbCudaArray;
         rgbCudaArray = nullptr;
-    }
-
-    // Cleanup ONNX Runtime resources
-    if (session) {
-        api->ReleaseSession(session);
-        session = nullptr;
-    }
-    if (env) {
-        api->ReleaseEnv(env);
-        env = nullptr;
-    }
-    if (info_cuda) {
-        api->ReleaseMemoryInfo(info_cuda);
-        info_cuda = nullptr;
-    }
-    if (cudaTextureOrt) {
-        api->ReleaseValue(cudaTextureOrt);
-        cudaTextureOrt = nullptr;
-    }
-    if (status) {
-        api->ReleaseStatus(status);
-        status = nullptr;
     }
 }

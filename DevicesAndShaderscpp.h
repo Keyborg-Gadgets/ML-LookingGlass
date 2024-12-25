@@ -1,6 +1,18 @@
 #pragma once
 #include "globals.h"
 #include "DevicesAndShaders.h"
+#include "cudaFunctions.cuh"
+
+extern inline float* GetRGBPlanar(ID3D11Texture2D* texture, unsigned int width, unsigned int height) {
+    cudaArray* mappedArray;
+    cudaGraphicsMapResources(1, &cudaResource);
+    cudaGraphicsSubResourceGetMappedArray(&mappedArray, cudaResource, 0, 0);
+    auto planar = KCuda::TextureToRGBPlanar(mappedArray, width, height);
+    cudaGraphicsUnmapResources(1, &cudaResource);
+    cudaFree(mappedArray);
+
+    return planar;
+}
 
 inline void CreateD2DDevice() {
     HRESULT hr;

@@ -1,0 +1,19 @@
+.vscode/
+/.vscode/*
+*.VC.db
+*.VC.VC.opendb
+*.vcxproj*
+*.pdb
+*.ilk
+*.obj
+*.tlog/
+*.lastbuildstate
+.vs/
+
+# Ignore other temporary and cache files
+.DS_Store
+*.swp
+*.user
+*.userosscache
+*.sln.docstates
+*.ide.*

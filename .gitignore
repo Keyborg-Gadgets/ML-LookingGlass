@@ -17,3 +17,12 @@
 *.userosscache
 *.sln.docstates
 *.ide.*
+
+LookingGlass/CUDA/
+LookingGlass/Dependency-Generator/CUDA/
+LookingGlass/Dependency-Generator/TensorRT.zip
+LookingGlass/Dependency-Generator/cuda12.3.exe
+LookingGlass/Dependency-Generator/cudnn.zip
+LookingGlass/Dependency-Generator/injector.exe
+LookingGlass/Dependency-Generator/network_requests.har
+Model/rtdetr_r18vd_6x_coco-fp16.engine

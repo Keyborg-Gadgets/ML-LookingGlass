@@ -1,8 +1,6 @@
-﻿cmake_minimum_required(VERSION 3.14)
+﻿cmake_minimum_required(VERSION 3.10)
 
-project(LookingGlass LANGUAGES C CXX CUDA)
-
-find_package(CUDA REQUIRED)
+project(LookingGlass LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
@@ -15,27 +13,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(WINDOWS_SDK_PATH "C:/Program Files (x86)/Windows Kits/10")
 
 set_source_files_properties(DevicesAndShaders.c PROPERTIES LANGUAGE C)
-set_source_files_properties(cudaFunctions.cu PROPERTIES LANGUAGE CUDA) 
-
-add_library(cudaFunctions STATIC cudaFunctions.cu)
-
-if(MSVC) 
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>") 
-endif()
 
 include_directories(
-    Onnx/include
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/ucrt
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/um
     ${WINDOWS_SDK_PATH}/Include/10.0.26100.0/shared
-    ${PROJECT_SOURCE_DIR}/ModelResources/include
-    "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/include"
+    ${PROJECT_SOURCE_DIR}/CUDA/v12.3/include
 )
 
 link_directories(
-    ${PROJECT_SOURCE_DIR}/ModelResources/lib
-    "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/lib/x64"
-    "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/lib"
+    ${PROJECT_SOURCE_DIR}/CUDA/v12.3/lib/x64
+    ${PROJECT_SOURCE_DIR}/CUDA/v12.3/lib
 )
 
 add_library(DevicesAndShaders STATIC "DevicesAndShaders.c")
@@ -47,6 +35,7 @@ add_executable (${PROJECT_NAME} "LookingGlass.cpp"
                                   "DevicesAndShaders.h" 
                                   "DevicesAndShaderscpp.h" 
                                   "cudaFunctions.cuh")
+
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     DevicesAndShaders
@@ -82,5 +71,4 @@ add_custom_target(run_powershell_script ALL
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Running PowerShell script after build..."
 )
-
 add_dependencies(${PROJECT_NAME} run_powershell_script)

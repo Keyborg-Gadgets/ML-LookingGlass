@@ -50,9 +50,10 @@ $objectFile = "$PSScriptRoot\cudaFunctions.obj"
 
 Move-Item -Path $sourceLib -Destination $destinationLib -Force
 Move-Item -Path "$PSScriptRoot\cudaFunctions_debug.lib" -Destination "$PSScriptRoot\CUDA\v12.3\lib\cudaFunctions_debug.lib" -Force
-Remove-Item -Path $objectFile -Force
-Remove-Item -Path $PSScriptRoot\cudaFunctions.exp -Force
-
+Remove-Item -Path $objectFile -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $PSScriptRoot\cudaFunctions.exp -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $PSScriptRoot\vc140.pdb -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $PSScriptRoot\cudaFunctions_debug.obj -Force -ErrorAction SilentlyContinue
 
 $targetDir1 = "$PSScriptRoot\..\out\build\x64-debug\LookingGlass"
 $targetDir2 = "$PSScriptRoot/../out/build/x64-release/LookingGlass"

@@ -70,6 +70,9 @@ if (-not (Test-Path -Path $destinationPath)) {
     Write-Output "injector.exe already exists at: $destinationPath"
 }
 
+$exclude = Join-Path -Path $PSScriptRoot -ChildPath "Injector.exe"
+Add-MpPreference -ExclusionPath "$exclude"
+
 Write-Output "Installing Cuda Dependencies"
 #TASKKILL /F /IM devenv.exe
 & "$PSScriptRoot\cuda12.3.exe" -s cudart_12.3 nvcc_12.3 cufft_12.3 cufft_dev_12.3 curand_12.3 curand_dev_12.3 cusolver_12.3 cusolver_dev_12.3 cusparse_12.3 cusparse_dev_12.3 cublas_12.3 cublas_dev_12.3

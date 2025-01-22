@@ -39,7 +39,6 @@ add_executable (${PROJECT_NAME} "LookingGlass.cpp"
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     DevicesAndShaders
-    cudaFunctions
     d3d11
     dxgi
     dwmapi

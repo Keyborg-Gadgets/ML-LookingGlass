@@ -9,9 +9,11 @@ https://github.com/user-attachments/assets/29991ccc-9300-40b7-9b9f-c8cac50b3b93
 I still need to add the onnx builder to the code, so at this time we go onnx->engine with trtexec. All of this is handled for you. 
 
 Requirements: 
-Visual Studio 2022 (this will be gone soon)
+```
+Visual Studio 2022 with Cmake (this will be gone soon)
 Windows SDK 10.0.26100.0 (this will be gone soon)
 Python (this will be gone soon)
+```
 
 ```
 git clone https://github.com/Keyborg-Gadgets/ML-LookingGlass.git

@@ -41,12 +41,15 @@ if ($clExeFile) {
 
 &"$PSScriptRoot\CUDA\v12.3\bin\nvcc.exe" -allow-unsupported-compiler -c -o cudaFunctions.obj cudaFunctions.cu -Xcompiler "/MD /D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
 &"$PSScriptRoot\CUDA\v12.3\bin\nvcc.exe" -lib -o cudaFunctions.lib cudaFunctions.obj
+&"$PSScriptRoot\CUDA\v12.3\bin\nvcc.exe" -allow-unsupported-compiler -c -o cudaFunctions_debug.obj cudaFunctions.cu -Xcompiler "/MDd /D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH /Zi /Od"
+&"$PSScriptRoot\CUDA\v12.3\bin\nvcc.exe" -lib -o cudaFunctions_debug.lib cudaFunctions_debug.obj
 
 $sourceLib = "$PSScriptRoot\cudaFunctions.lib"
 $destinationLib = "$PSScriptRoot\CUDA\v12.3\lib\cudaFunctions.lib"
 $objectFile = "$PSScriptRoot\cudaFunctions.obj"
 
 Move-Item -Path $sourceLib -Destination $destinationLib -Force
+Move-Item -Path "$PSScriptRoot\cudaFunctions_debug.lib" -Destination "$PSScriptRoot\CUDA\v12.3\lib\cudaFunctions_debug.lib" -Force
 Remove-Item -Path $objectFile -Force
 Remove-Item -Path $PSScriptRoot\cudaFunctions.exp -Force
 

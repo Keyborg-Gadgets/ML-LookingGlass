@@ -1,9 +1,5 @@
 # Real time looking glass for Windows
 
-
-This project is not quite ready for release. There's a few flaws which I'll cover in caveats. I'm applying for some roles around development tooling so I'm showcasing some of that.
-
-
 The long term goal of this project is a thesis on how we communicate in code and disseminate technical information. Its intentionally less than DRY. I want every idea to be tangible. It's not a "shader", its math on a "texture", but it's just an image of whats on your screen. Architecturally how can we communicate technology boundaries in a way that can be quickly understood and referenced. This repo is not just code, it's a conversation.
 
 

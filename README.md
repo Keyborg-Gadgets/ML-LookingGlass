@@ -19,8 +19,6 @@ https://github.com/user-attachments/assets/29991ccc-9300-40b7-9b9f-c8cac50b3b93
 # Architecture 
 
 ![Blank diagram](https://github.com/user-attachments/assets/514f66e5-41d3-4e2e-83df-ad58d456e3c3)
-![Uploading Blank diagram.svg…]()
-
 
 # Building
 

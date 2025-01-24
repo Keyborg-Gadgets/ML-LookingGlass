@@ -59,6 +59,7 @@ public:
 
 glogger logger;
 std::string engine_file;
+std::string onnx_file;
 int batchSize;
 int imageWidth;
 int imageHeight;
@@ -147,16 +148,171 @@ HRESULT DrawDetectionsOnBitmap(const Detections& detections) {
     return hr;
 }
 
+
+
+void BuildTrtFile(const std::string& onnxFile, const std::string& engineFile)
+{
+    glogger gLogger;
+
+    // Create builder
+    std::unique_ptr<nvinfer1::IBuilder, void(*)(nvinfer1::IBuilder*)> builder(
+        nvinfer1::createInferBuilder(gLogger),
+        [](nvinfer1::IBuilder* p) { p->destroy(); }
+    );
+    if (!builder)
+    {
+        std::cerr << "Failed to create TensorRT builder." << std::endl;
+        return;
+    }
+
+    // Create network with explicit batch
+    const auto explicitBatch = 1U << static_cast<uint32_t>(
+        nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH
+        );
+    std::unique_ptr<nvinfer1::INetworkDefinition, void(*)(nvinfer1::INetworkDefinition*)> network(
+        builder->createNetworkV2(explicitBatch),
+        [](nvinfer1::INetworkDefinition* p) { p->destroy(); }
+    );
+    if (!network)
+    {
+        std::cerr << "Failed to create TensorRT network." << std::endl;
+        return;
+    }
+
+    // Create ONNX parser
+    std::unique_ptr<nvonnxparser::IParser, void(*)(nvonnxparser::IParser*)> parser(
+        nvonnxparser::createParser(*network, gLogger),
+        [](nvonnxparser::IParser* p) { p->destroy(); }
+    );
+    if (!parser)
+    {
+        std::cerr << "Failed to create ONNX parser." << std::endl;
+        return;
+    }
+
+    // Parse ONNX
+    if (!parser->parseFromFile(onnxFile.c_str(), static_cast<int>(nvinfer1::ILogger::Severity::kINFO)))
+    {
+        std::cerr << "Failed to parse ONNX file: " << onnxFile << std::endl;
+        return;
+    }
+
+    // Create BuilderConfig
+    std::unique_ptr<nvinfer1::IBuilderConfig, void(*)(nvinfer1::IBuilderConfig*)> config(
+        builder->createBuilderConfig(),
+        [](nvinfer1::IBuilderConfig* p) { p->destroy(); }
+    );
+    if (!config)
+    {
+        std::cerr << "Failed to create builder config." << std::endl;
+        return;
+    }
+    config->setMaxWorkspaceSize(1ULL << 30); // e.g. 1GB
+    config->setFlag(nvinfer1::BuilderFlag::kFP16); // optional, if your GPU supports it
+
+    //------------------------------------------------------------------------------
+    // Force the input to a static shape of [1 x 300 x 80] using an optimization profile
+    //------------------------------------------------------------------------------
+
+    // We assume the network has exactly one input, but adjust if you have more.
+    nvinfer1::ITensor* input = network->getInput(0);
+    if (!input)
+    {
+        std::cerr << "Network has no inputs? Aborting." << std::endl;
+        return;
+    }
+
+    // Create an optimization profile so that TensorRT knows to treat the input
+    // as having a fixed shape of [1 x 300 x 80].
+    nvinfer1::IOptimizationProfile* profile = builder->createOptimizationProfile();
+    if (!profile)
+    {
+        std::cerr << "Failed to create optimization profile." << std::endl;
+        return;
+    }
+
+    // The input name must match the ONNX input tensor name.
+    // You can verify it via `std::cout << input->getName() << std::endl;`
+    const char* inputName = input->getName();
+
+    // Set min, opt, max to the same shape => effectively "static"
+    profile->setDimensions(
+        inputName,
+        nvinfer1::OptProfileSelector::kMIN,
+        nvinfer1::Dims4(1, 3, enginesz, enginesz)
+    );
+    profile->setDimensions(
+        inputName,
+        nvinfer1::OptProfileSelector::kOPT,
+        nvinfer1::Dims4(1, 3, enginesz, enginesz)
+    );
+    profile->setDimensions(
+        inputName,
+        nvinfer1::OptProfileSelector::kMAX,
+        nvinfer1::Dims4(1, 3, enginesz, enginesz)
+    );
+
+    // Add the profile to the config
+    config->addOptimizationProfile(profile);
+
+    //------------------------------------------------------------------------------
+    // Build the engine
+    //------------------------------------------------------------------------------
+
+    std::unique_ptr<nvinfer1::ICudaEngine, void(*)(nvinfer1::ICudaEngine*)> engine(
+        builder->buildEngineWithConfig(*network, *config),
+        [](nvinfer1::ICudaEngine* p) { p->destroy(); }
+    );
+    if (!engine)
+    {
+        std::cerr << "Engine building failed." << std::endl;
+        return;
+    }
+
+    // Serialize engine to memory
+    std::unique_ptr<nvinfer1::IHostMemory, void(*)(nvinfer1::IHostMemory*)> serializedEngine(
+        engine->serialize(),
+        [](nvinfer1::IHostMemory* p) { p->destroy(); }
+    );
+    if (!serializedEngine)
+    {
+        std::cerr << "Failed to serialize engine." << std::endl;
+        return;
+    }
+
+    // Write engine to file
+    std::ofstream engineOutputFile(engineFile, std::ios::binary);
+    if (!engineOutputFile)
+    {
+        std::cerr << "Cannot open file to write engine: " << engineFile << std::endl;
+        return;
+    }
+    engineOutputFile.write(
+        static_cast<const char*>(serializedEngine->data()),
+        serializedEngine->size()
+    );
+    engineOutputFile.close();
+
+    std::cout << "Engine file created: " << engineFile << std::endl;
+}
+
+bool fileExists(const std::string& filename)
+{
+    return std::filesystem::exists(std::filesystem::path(filename));
+}
+
+
+
 void ReadTrtFile() {
     std::string cached_engine;
     std::fstream file;
     nvinfer1::IRuntime *trtRuntime;
+
     file.open(engine_file, std::ios::binary | std::ios::in);
 
     if (!file.is_open()) {
         std::cout << "read file error: " << engine_file << std::endl;
         cached_engine = "";
-        exit(1);
     }
 
     while (file.peek() != EOF) {
@@ -170,11 +326,14 @@ void ReadTrtFile() {
 }
 
 void LoadEngine() {
+    if (!fileExists(engine_file))
+        BuildTrtFile(onnx_file, engine_file);
+
     std::fstream existEngine;
     existEngine.open(engine_file, std::ios::in);
     if (existEngine) {
         ReadTrtFile();
-    }
+    } 
     context = engine->createExecutionContext();  
     assert(context != nullptr);
 
@@ -193,6 +352,7 @@ void LoadEngine() {
 
 inline void InitRTdetr() {
     engine_file = exeDir + "/rtdetr_r18vd_6x_coco-fp16.engine";
+    onnx_file = exeDir + "/modified_out.sim.onnx";
     batchSize = 1;
     imageWidth = 640;
     imageHeight = 640;

@@ -61,6 +61,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     cublas
     cudnn
     nvinfer
+    nvonnxparser 
 )
 
 set(POWERSHELL_SCRIPT  ${CMAKE_CURRENT_SOURCE_DIR}/SetStaticBinaryResources.ps1)

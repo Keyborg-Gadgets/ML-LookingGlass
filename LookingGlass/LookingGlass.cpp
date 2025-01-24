@@ -2,12 +2,6 @@
 Timer timer;
 int main()
 {
-    // Show/Hide the console window for debug vs release
-    HWND chwnd = GetConsoleWindow();
-    ShowWindow(chwnd, SW_HIDE);
-#ifdef _DEBUG
-    ShowWindow(chwnd, SW_SHOW);
-#endif
     // Gotta go fast.
     NtSetTimerResolution(5000, TRUE, &currentRes);
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
@@ -53,9 +47,15 @@ int main()
 
     // Make sure our window is up
     while (!winDone) {};
+    InitRTdetr();
+    // Show/Hide the console window for debug vs release
+    HWND chwnd = GetConsoleWindow();
+    ShowWindow(chwnd, SW_HIDE);
+#ifdef _DEBUG
+    ShowWindow(chwnd, SW_SHOW);
+#endif
     // Start the ixdgi capture session
     InitializeCapture();
-    InitRTdetr();
 
     // There's a commit in there that has a ton of good onnx stuff. The model was probably broken at the
     // the time but if I gotta get in the bones to figure that out we're just stayin in the bones.

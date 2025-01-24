@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 
+//=== Debug/Configuration
 #ifdef _DEBUG
 uint32_t debug = 1;
 #endif
@@ -8,6 +9,7 @@ uint32_t debug = 1;
 uint32_t debug = 0;
 #endif
 
+//=== Global Variables
 float* rgbCudaArray;
 std::string exeDir;
 HRESULT hr = S_OK;
@@ -20,12 +22,10 @@ uint32_t yOfMouse = 0;
 HHOOK hMouseHook = nullptr;
 ULONG currentRes;
 std::atomic<bool> winDone(false);
-
 static bool previouslyInteractive = true;
 bool windowAvailable = (xOfWindow != -1 && yOfWindow != -1);
 bool inBounds = true;
 bool interactive = true;
-
 bool running = true;
 HWND overlayHwnd;
 HWND lookingGlassHwnd;
@@ -33,50 +33,53 @@ HMONITOR monitor;
 HINSTANCE hInstance;
 std::atomic<bool> texture_written = false;
 int titleBarHeight;
-
 uint32_t monitor_width = 0;
 uint32_t monitor_height = 0;
 
+//=== DXGI & Adapter
 IDXGIAdapter1* adapter = nullptr;
-
 IDXGIFactory2* d3dfactory = nullptr;
 ID2D1Factory2* d2dFactory = nullptr;
 ID2D1Device1* d2dDevice = nullptr;
 ID2D1DeviceContext* d2dContext = nullptr;
-
 IDXGIDevice1* dxgiDevice = nullptr;
 ID3D11RenderTargetView* renderTargetView = nullptr;
 
+//=== DirectComposition
 IDCompositionDevice* dcompDevice = nullptr;
 IDCompositionTarget* dcompTarget = nullptr;
 IDCompositionVisual* dcompVisual = nullptr;
 
+//=== Swap Chain
 IDXGISwapChain1* swapchain = nullptr;
 
+//=== CUDA Texture Swap Chain
 IDXGISwapChain1* cudaTextureSwapchain = nullptr;
 ID3D11Texture2D* cudaTexture = nullptr;
 IDXGISurface2* cudaTextureBackBuffer = nullptr;
 ID3D11UnorderedAccessView* cudaTextureUAV = nullptr;
 
+//=== Output Texture Swap Chain
 IDXGISwapChain1* outputTextureSwapchain = nullptr;
 ID3D11Texture2D* outputTexture = nullptr;
 IDXGISurface2* outputTextureBackBuffer = nullptr;
 ID3D11UnorderedAccessView* outputTextureUAV = nullptr;
 
+//=== D3D Device & Context
 ID3D11Device1* d3dDevice = nullptr;
 ID3D11DeviceContext1* d3dContext = nullptr;
-
 IDXGISurface2* dxgiBackBuffer = nullptr;
 ID2D1Bitmap1* d2dBitmapBackBuffer = nullptr;
 ID3D11Texture2D* d2dTextureBackBuffer = nullptr;
 ID3D11Texture2D* desktopTexture = nullptr;
-
 ID3D11ShaderResourceView* desktopShaderResourceView = nullptr;
 IDXGIOutputDuplication* outputDuplication = nullptr;
 
+//=== Compute Shaders
 ID3D11ComputeShader* ScanComputeShader = nullptr;
 ID3D11ComputeShader* CopyComputeShader = nullptr;
 
+//=== Buffers & UAVs
 ID3D11Buffer* xBuffer = nullptr;
 ID3D11Buffer* yBuffer = nullptr;
 ID3D11UnorderedAccessView* xUAV = nullptr;
@@ -89,9 +92,9 @@ ID3D11UnorderedAccessView* regionXUAV = nullptr;
 ID3D11UnorderedAccessView* regionYUAV = nullptr;
 ID3D11Buffer* debugBuffer = nullptr;
 ID3D11UnorderedAccessView* debugUAV = nullptr;
-
 ID3D11SamplerState* samplerState = nullptr;
 
+//=== CUDA Resources
 cudaGraphicsResource* cudaResource = nullptr;
 cudaArray_t cudaTextureArray;
 float* d_output0 = nullptr;

@@ -1,6 +1,7 @@
 # Real time looking glass for Windows
 
 
+<<<<<<< HEAD
 This project is not quite ready for release. There's a few flaws which I'll cover in caveats. I'm applying for some roles around development tooling so I'm showcasing some of that.
 
 
@@ -56,3 +57,12 @@ Can’t handle most Laptops because they usually pass through the integrated CPU
 
 
 Tested on single monitor, YMMV.
+=======
+This project is not quite ready for relase. There's a few flaws which I'll cover in caveats. I'm applying for some roles around development tooling so I'm showcasing some of that. 
+
+https://github.com/Keyborg-Gadgets/ML-LookingGlass/blob/master/Assets/glass.mp4
+
+[![Now in Android: 55]
+(https://i.ytimg.com/vi/Hc79sDi3f0U/maxresdefault.jpg)]
+(https://www.youtube.com/watch?v=Hc79sDi3f0U "Now in Android: 55")
+>>>>>>> bc27699 (Readme)

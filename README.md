@@ -43,6 +43,7 @@ It's going to open a browser window so you can auth for the TensorRT Deps. [Noth
 
 # Todo
 Publish tooling for trimming paddle paddle models.
+Cleanup (so much cleanup). But the globals are intentional. This is a playground. It's going to continue to be more of a notebook. I don't know if I like the globals being this global. They'll all get moved to their own headers. But remain public. Drop in, hack anywhere. That's the goal. Grab the header, drop it anywhere. 
 
 # Caveats
 Runs at, at least 144FPS on a 3090ti. You can only detect against rendered textures so your monitor has to go that fast.

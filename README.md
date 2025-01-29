@@ -7,7 +7,7 @@ Conway's Law says: organizations which design systems are constrained to produce
 copies of the communication structures of these organizations
 
 
-The the thesis succinctly is, can we flip conways law on it's head? Can we design systems and communicate in code, in such a way we spawn new organizations and structures? I believe so.
+The thesis succinctly is, can we flip conways law on it's head? Can we design systems and communicate in code, in such a way we spawn new organizations and structures? I believe so.
 
 
 https://github.com/user-attachments/assets/29991ccc-9300-40b7-9b9f-c8cac50b3b93

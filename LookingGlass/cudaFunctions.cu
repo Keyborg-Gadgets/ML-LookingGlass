@@ -1,7 +1,44 @@
-#include "cudaFunctions.cuh"
+﻿#include "cudaFunctions.cuh"
 #include <vector>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <cmath>
+#include <cstring>
+
+// ==========================================================================
+// Constants and Struct Definitions
+// ==========================================================================
+
+#define CHARSET "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+#define CHARSET_SIZE 62
+#define MAX_LEVELS 5              // Maximum number of hierarchy levels (adjust as needed)
+#define PHRASE_BUFFER_SIZE 4096   // Maximum length for any concatenated phrase
+
+// This struct stores a "word" (i.e. the hash from all levels) for one keypoint.
+struct BoxHash {
+    char chars[MAX_LEVELS]; // one character per level
+};
+
+// A basic box structure. (Used both for YOLO detections and for phrase bounding boxes.)
+struct Box {
+    float l, t, r, b;  // left, top, right, bottom
+    float score;       // for YOLO detections
+    int   label;       // for YOLO detections (class id)
+};
+
+// The Detections object (as given) would hold a vector<Box>.
+// For device processing we assume an array of Box.
+struct Detections {
+    // (Host code will prepare an array; we don’t use std::vector on device.)
+    std::vector<Box> dets;
+};
+
+// Structure to hold a concatenated phrase.
+struct Phrase {
+    int index; // index (for detection or bounding box)
+    char phrase[PHRASE_BUFFER_SIZE]; // concatenated string of keypoint words (no spaces)
+};
+
 
 #define CUDA_CHECK(call)                                                           \
     do {                                                                           \
@@ -97,7 +134,6 @@ __global__ void processDetectionsKernel(
     d_boxes[index] = { l, t, r, b, best_score, best_class};
 }
 
-
 __global__
 void bgra_to_rgb_planar_normalized(const unsigned char* __restrict__ bgra,
     float* __restrict__ dst,
@@ -121,6 +157,19 @@ void bgra_to_rgb_planar_normalized(const unsigned char* __restrict__ bgra,
     dst[1 * planeSize + idx] = G;
     dst[2 * planeSize + idx] = B;
 }
+
+__device__ void device_strcat(char* dest, const char* src, int dest_size) {
+    int i = 0;
+    while (i < dest_size && dest[i] != '\0')
+        i++;
+    int j = 0;
+    while (src[j] != '\0' && (i + j) < (dest_size - 1)) {
+        dest[i + j] = src[j];
+        j++;
+    }
+    dest[i + j] = '\0';
+}
+
 
 namespace KCuda {
     Detections processDetections(

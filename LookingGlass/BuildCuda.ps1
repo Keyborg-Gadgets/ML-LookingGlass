@@ -8,7 +8,7 @@
   2. Adds cl.exe directory to PATH (current session).
   3. Compiles CUDA source to both Release and Debug libraries.
   4. Moves library files to a specified CUDA lib folder.
-  5. Generates a TensorRT engine file (if it doesn’t already exist).
+  5. Generates a TensorRT engine file (if it doesnï¿½t already exist).
   6. Copies necessary DLLs and the engine file into specified output directories.
 #>
 
@@ -117,7 +117,7 @@ Set-Location $cudaBin
 #    trtexec --onnx=$onnxModel --saveEngine=$engineFile --fp16
 #    if ($LASTEXITCODE -ne 0) {
 #        Write-Error "Failed to generate engine file."
-#        Set-Location $PSScriptRoot
+#        Set-Location $PSScriptRoot"
 #        exit $LASTEXITCODE
 #    }
 #}
@@ -134,7 +134,7 @@ $nvinferBuilderResourceDll = Join-Path $cudaBin "nvinfer_builder_resource.dll"
 $cublasDll    = Join-Path $cudaBin "cublas64_12.dll"
 $cublasLtDll  = Join-Path $cudaBin "cublasLt64_12.dll"
 $cudnnDll     = Join-Path $cudaBin "cudnn64_8.dll"
-
+$engineFile   = Join-Path $PSScriptRoot "..\Model\modified_out.sim.onnx"
 foreach ($dir in @($targetDir1, $targetDir2)) {
     New-Item -ItemType HardLink -Path (Join-Path $dir "nvinfer.dll")                   -Target $nvinferDll                -Force | Out-Null
     New-Item -ItemType HardLink -Path (Join-Path $dir "cudart64_12.dll")               -Target $cudartDll                 -Force | Out-Null

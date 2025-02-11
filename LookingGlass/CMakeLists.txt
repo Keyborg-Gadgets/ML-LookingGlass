@@ -26,7 +26,7 @@ link_directories(
     ${PROJECT_SOURCE_DIR}/CUDA/v12.3/lib
 )
 
-add_library(DevicesAndShaders STATIC "DevicesAndShaders.c")
+add_library(DevicesAndShaders STATIC "DevicesAndShaders.c" "orbd.h")
 add_executable (${PROJECT_NAME} "LookingGlass.cpp" 
                                   "LookingGlass.h"  
                                   "HwndsAndWindowManagement.h" 

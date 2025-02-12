@@ -56,3 +56,8 @@ Can’t handle DPI scaling. I find the window by scanning for an ICON which chan
 Can’t handle most Laptops because they usually pass through the integrated CPU. You have to output via the HDMI port.
 
 Tested on single monitor, YMMV.
+
+# License
+Im using [ORB](https://github.com/Accustomer/CUDA-ORB/tree/main). It has no license idk what that means. All my code respects licensing. I never pulled from a repo that wasn't MIT licensed, to my knowledge, except fot ORB. Ill do accreditations when this is all complete.
+
+I don't even have a copyright notice on this. LLMs pose a unique challenge. If you use LLMs, you know what they can do, but you know what they can't do. This code has been modified regurgitated taken from other repos passed through ChatGPT back to me back to ChatGPT back to me. This is still my own fundamentally unique creation. I think this is an incredibly strong software architecture  implementation. But I cant tell you what I created and what someone else created. Many of the algorithms and structures are uniquely mine.
